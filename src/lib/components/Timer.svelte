@@ -1,10 +1,10 @@
 <script lang="ts">
-  interface Props {
+  type Props = {
     countDirection?: "up" | "down";
     delay?: number;
     duration: number;
     startTime?: number;
-  }
+  };
 
   let {
     countDirection = "down",
@@ -14,14 +14,14 @@
   } = $props() as Props;
 
   let initialCount = $derived(
-    countDirection === "down" && startTime === 0 ? duration : startTime
+    countDirection === "down" && startTime === 0 ? duration : startTime,
   );
 
   let count = $state(initialCount);
   let isRunning = $state(false);
   let isDelaying = $state(false);
-  let interval: ReturnType<typeof setInterval>;
-  let timeout: ReturnType<typeof setTimeout>;
+  let interval: number | undefined;
+  let timeout: number | undefined;
 
   // TIE ANIMATION TO COUNT: Calculate width based on progress
   let progressWidth = $derived((count / duration) * 100);
@@ -52,7 +52,7 @@
 
   function start() {
     isRunning = true;
-    interval = setInterval(updateCounter, 1000);
+    interval = setInterval(updateCounter, 1000) as unknown as number;
   }
 
   function pause() {
@@ -71,7 +71,7 @@
         timeout = setTimeout(() => {
           isDelaying = false;
           start();
-        }, delay * 1000);
+        }, delay * 1000) as unknown as number;
       } else {
         start();
       }
