@@ -1,5 +1,7 @@
 <script lang="ts">
   import { fly } from "svelte/transition";
+  import { onMount, onDestroy } from "svelte";
+  import confetti from "canvas-confetti";
 
   // Configuration
   const SIZE = 10;
@@ -14,9 +16,30 @@
     answer: number;
   }
 
-  // Initialize the grid
+  // State
   let grid: Cell[][] = [];
+  let activeRow: number | null = null;
+  let activeCol: number | null = null;
 
+  // Timer State
+  let startTime: number | null = null;
+  let elapsed: number = 0;
+  let timerInterval: any = null;
+  let bestTime: number | null = null;
+  let gameFinished = false;
+
+  onMount(() => {
+    const storedBest = localStorage.getItem("multiplication-best-time");
+    if (storedBest) {
+      bestTime = parseFloat(storedBest);
+    }
+  });
+
+  onDestroy(() => {
+    if (timerInterval) clearInterval(timerInterval);
+  });
+
+  // Initialize the grid
   for (let r = 0; r <= SIZE; r++) {
     let row: Cell[] = [];
     for (let c = 0; c <= SIZE; c++) {
@@ -31,10 +54,69 @@
   }
   grid = grid;
 
+  // --- Timer Logic ---
+
+  function formatTime(seconds: number): string {
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60);
+    return `${m}:${s.toString().padStart(2, "0")}`;
+  }
+
+  function startTimer() {
+    if (startTime !== null || gameFinished) return;
+    startTime = Date.now();
+    timerInterval = setInterval(() => {
+      elapsed = (Date.now() - startTime!) / 1000;
+    }, 100);
+  }
+
+  function checkWin() {
+    let allCorrect = true;
+    for (let r = 1; r <= SIZE; r++) {
+      for (let c = 1; c <= SIZE; c++) {
+        if (grid[r][c].status !== "correct" && grid[r][c].status !== "filled") {
+          // If it's not explicitly marked correct/filled, check the value
+          // This handles cases where user types blindly without hitting enter
+          if (grid[r][c].value !== grid[r][c].answer) {
+            allCorrect = false;
+            break;
+          }
+        }
+      }
+    }
+
+    if (allCorrect && !gameFinished) {
+      gameFinished = true;
+      clearInterval(timerInterval);
+      const finalTime = (Date.now() - startTime!) / 1000;
+      elapsed = finalTime;
+
+      // Update Best Time
+      if (bestTime === null || finalTime < bestTime) {
+        bestTime = finalTime;
+        localStorage.setItem("multiplication-best-time", finalTime.toString());
+      }
+
+      // Celebrate
+      confetti({
+        particleCount: 150,
+        spread: 70,
+        origin: { y: 0.6 },
+      });
+    }
+  }
+
   // --- Actions ---
 
   function activateCell(r: number, c: number) {
     if (r === 0 || c === 0) return;
+
+    // Start timer on first interaction
+    startTimer();
+
+    // Highlight headers
+    activeRow = r;
+    activeCol = c;
 
     // Reset others
     grid = grid.map((row) =>
@@ -54,6 +136,8 @@
   function cancelEdit(r: number, c: number) {
     grid[r][c].status = grid[r][c].value ? "filled" : "empty";
     grid[r][c].tempValue = null;
+    activeRow = null;
+    activeCol = null;
   }
 
   function confirmCell(r: number, c: number) {
@@ -73,9 +157,12 @@
     const isCorrect = inputVal === cell.answer;
 
     grid[r][c].value = inputVal;
+    activeRow = null;
+    activeCol = null;
 
     if (isCorrect) {
       grid[r][c].status = "correct";
+      checkWin(); // Check if this was the last one
       setTimeout(() => {
         if (grid[r][c].status === "correct") {
           grid[r][c].status = "filled";
@@ -110,10 +197,19 @@
       }
     }
     grid = grid;
+    checkWin();
   }
 
   function clearAll() {
     if (!confirm("Are you sure you want to clear the whole board?")) return;
+
+    // Reset Game State
+    startTime = null;
+    elapsed = 0;
+    gameFinished = false;
+    if (timerInterval) clearInterval(timerInterval);
+    activeRow = null;
+    activeCol = null;
 
     for (let r = 1; r <= SIZE; r++) {
       for (let c = 1; c <= SIZE; c++) {
@@ -127,19 +223,37 @@
 </script>
 
 <div class="container">
-  <h1>Times Table Challenge</h1>
+  <div class="header-section">
+    <h1>Times Table Challenge</h1>
+    <div class="stats">
+      <div class="stat-box">
+        <span class="label">Time</span>
+        <span class="value">{formatTime(elapsed)}</span>
+      </div>
+      {#if bestTime !== null}
+        <div class="stat-box best">
+          <span class="label">Best</span>
+          <span class="value">{formatTime(bestTime)}</span>
+        </div>
+      {/if}
+    </div>
+  </div>
 
   <div class="grid-wrapper">
     <div class="grid-row header-row">
       <div class="cell corner">X</div>
       {#each Array(SIZE) as _, i}
-        <div class="cell header">{i + 1}</div>
+        <div class="cell header" class:highlighted={activeCol === i + 1}>
+          {i + 1}
+        </div>
       {/each}
     </div>
 
     {#each grid.slice(1) as row, r}
       <div class="grid-row">
-        <div class="cell header">{r + 1}</div>
+        <div class="cell header" class:highlighted={activeRow === r + 1}>
+          {r + 1}
+        </div>
 
         {#each row.slice(1) as cell, c}
           {@const actualR = r + 1}
@@ -200,6 +314,8 @@
     /* Headers */
     --color-header: #2563eb;
     --color-header-text: #ffffff;
+    --color-header-highlight: #facc15; /* Yellow highlight for headers */
+    --color-header-highlight-text: #000000;
 
     /* Cells */
     --color-cell-bg: #27272a;
@@ -222,17 +338,57 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    /*background-color: var(--color-bg);*/
-    /*color: var(--color-text);*/
     padding: 2rem;
     min-height: 100vh;
+  }
+
+  .header-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    width: 100%;
+    max-width: 600px;
   }
 
   h1 {
     color: #facc15;
     text-transform: uppercase;
     letter-spacing: 2px;
-    margin-bottom: 1.5rem;
+    margin-bottom: 1rem;
+    text-align: center;
+  }
+
+  .stats {
+    display: flex;
+    gap: 2rem;
+  }
+
+  .stat-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: #27272a;
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius);
+    border: 1px solid #3f3f46;
+    min-width: 100px;
+  }
+
+  .stat-box.best {
+    border-color: var(--color-correct);
+  }
+
+  .stat-box .label {
+    font-size: 0.8rem;
+    color: #a1a1aa;
+    text-transform: uppercase;
+  }
+
+  .stat-box .value {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: white;
   }
 
   /* --- Grid Layout --- */
@@ -245,7 +401,6 @@
     border: 1px solid #333;
     border-radius: var(--radius);
     box-shadow: var(--shadow);
-    /* Ensure the popups don't get cut off by the container */
     overflow: visible;
   }
 
@@ -265,7 +420,7 @@
     border-radius: var(--radius);
     font-weight: bold;
     font-size: 1.2rem;
-    position: relative; /* Anchor for absolute positioning */
+    position: relative;
     transition: all 0.2s ease;
     color: var(--color-text);
   }
@@ -274,6 +429,19 @@
     background-color: var(--color-header);
     color: var(--color-header-text);
     border: 1px solid #1e40af;
+    transition:
+      background-color 0.2s,
+      color 0.2s;
+  }
+
+  /* Highlight state for headers */
+  .header.highlighted {
+    background-color: var(--color-header-highlight);
+    color: var(--color-header-highlight-text);
+    border-color: white;
+    transform: scale(1.05);
+    z-index: 5;
+    box-shadow: 0 0 10px rgba(250, 204, 21, 0.5);
   }
 
   .corner {
@@ -286,7 +454,6 @@
     background-color: var(--color-cell-bg);
     cursor: pointer;
     border: 1px solid #3f3f46;
-    /* Default is hidden to clip hover effects, but changed for editing below */
     overflow: hidden;
   }
 
@@ -297,15 +464,13 @@
 
   /* --- States --- */
   .interactive.editing {
-    background-color: transparent; /* Wrapper is transparent, children have color */
+    background-color: transparent;
     border: 2px solid white;
     cursor: default;
     transform: scale(1.15);
-    z-index: 999; /* Must be on top of everything */
+    z-index: 999;
     padding: 0;
     box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
-
-    /* Allow buttons to hang outside */
     overflow: visible;
   }
 
@@ -331,18 +496,17 @@
 
   /* --- Editing Layout --- */
 
-  /* Input Area: Fills the original cell */
   .input-area {
     width: 100%;
-    height: 100%; /* 50px */
+    height: 100%;
     background-color: var(--color-editing);
     color: var(--color-editing-text);
     display: flex;
     align-items: center;
     justify-content: center;
     position: relative;
-    z-index: 2; /* Sits on top of the sliding buttons */
-    border-radius: 4px 4px 0 0; /* Rounded top */
+    z-index: 2;
+    border-radius: 4px 4px 0 0;
   }
 
   input {
@@ -366,23 +530,19 @@
     margin: 0;
   }
 
-  /* Buttons: Render BELOW the cell */
   .actions {
     position: absolute;
-    top: 100%; /* Push completely below the cell */
-    left: -2px; /* Align with border accounting for width */
-    width: calc(100% + 4px); /* Match width including borders */
-    height: 40px; /* Specific height for buttons */
-
+    top: 100%;
+    left: -2px;
+    width: calc(100% + 4px);
+    height: 40px;
     display: flex;
-    z-index: 1; /* Slide out from behind input */
-
-    /* Create the white border effect around the dropdown part */
+    z-index: 1;
     border: 2px solid white;
-    border-top: none; /* Connect to top part */
+    border-top: none;
     border-radius: 0 0 6px 6px;
     box-sizing: border-box;
-    overflow: hidden; /* rounded corners clip content */
+    overflow: hidden;
   }
 
   .btn-icon {
@@ -456,7 +616,6 @@
     transform: translateY(2px);
   }
 
-  /* --- Keyframes --- */
   @keyframes pop {
     0% {
       transform: scale(0.8);
