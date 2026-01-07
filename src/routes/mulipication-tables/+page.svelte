@@ -3,10 +3,10 @@
   import { onMount, onDestroy } from "svelte";
   import confetti from "canvas-confetti";
 
-  // Configuration
-  const SIZE = 10;
+  // --- Configuration ---
+  const SIZE = 12;
 
-  // Type definition for a single cell
+  // --- Types ---
   type CellState = "empty" | "editing" | "correct" | "wrong" | "filled";
 
   interface Cell {
@@ -16,18 +16,39 @@
     answer: number;
   }
 
-  // State
-  let grid: Cell[][] = [];
-  let activeRow: number | null = null;
-  let activeCol: number | null = null;
+  // --- State Initialization ---
+  function createGrid(): Cell[][] {
+    const newGrid: Cell[][] = [];
+    for (let r = 0; r <= SIZE; r++) {
+      let row: Cell[] = [];
+      for (let c = 0; c <= SIZE; c++) {
+        row.push({
+          value: null,
+          tempValue: null,
+          status: "empty",
+          answer: r * c,
+        });
+      }
+      newGrid.push(row);
+    }
+    return newGrid;
+  }
+
+  // Svelte 5: Deeply reactive state object
+  let grid = $state(createGrid());
+
+  // Selection State
+  let selectedR = $state<number | null>(null);
+  let selectedC = $state<number | null>(null);
 
   // Timer State
-  let startTime: number | null = null;
-  let elapsed: number = 0;
+  let startTime = $state<number | null>(null);
+  let elapsed = $state(0);
+  let bestTime = $state<number | null>(null);
+  let gameFinished = $state(false);
   let timerInterval: any = null;
-  let bestTime: number | null = null;
-  let gameFinished = false;
 
+  // --- Lifecycle ---
   onMount(() => {
     const storedBest = localStorage.getItem("multiplication-best-time");
     if (storedBest) {
@@ -39,23 +60,7 @@
     if (timerInterval) clearInterval(timerInterval);
   });
 
-  // Initialize the grid
-  for (let r = 0; r <= SIZE; r++) {
-    let row: Cell[] = [];
-    for (let c = 0; c <= SIZE; c++) {
-      row.push({
-        value: null,
-        tempValue: null,
-        status: "empty",
-        answer: r * c,
-      });
-    }
-    grid.push(row);
-  }
-  grid = grid;
-
-  // --- Timer Logic ---
-
+  // --- Helpers ---
   function formatTime(seconds: number): string {
     const m = Math.floor(seconds / 60);
     const s = Math.floor(seconds % 60);
@@ -74,30 +79,27 @@
     let allCorrect = true;
     for (let r = 1; r <= SIZE; r++) {
       for (let c = 1; c <= SIZE; c++) {
-        if (grid[r][c].status !== "correct" && grid[r][c].status !== "filled") {
-          // If it's not explicitly marked correct/filled, check the value
-          // This handles cases where user types blindly without hitting enter
-          if (grid[r][c].value !== grid[r][c].answer) {
-            allCorrect = false;
-            break;
-          }
+        const cell = grid[r][c];
+        // Check if value matches answer (even if not visually marked 'correct' yet)
+        if (cell.value !== cell.answer) {
+          allCorrect = false;
+          break;
         }
       }
     }
 
     if (allCorrect && !gameFinished) {
       gameFinished = true;
-      clearInterval(timerInterval);
+      if (timerInterval) clearInterval(timerInterval);
+
       const finalTime = (Date.now() - startTime!) / 1000;
       elapsed = finalTime;
 
-      // Update Best Time
       if (bestTime === null || finalTime < bestTime) {
         bestTime = finalTime;
         localStorage.setItem("multiplication-best-time", finalTime.toString());
       }
 
-      // Celebrate
       confetti({
         particleCount: 150,
         spread: 70,
@@ -106,44 +108,79 @@
     }
   }
 
-  // --- Actions ---
+  // --- Interaction Logic ---
 
-  function activateCell(r: number, c: number) {
-    if (r === 0 || c === 0) return;
+  function selectCell(r: number, c: number) {
+    if (r < 1 || r > SIZE || c < 1 || c > SIZE) return;
 
-    // Start timer on first interaction
+    // Close previous edit if changing selection
+    if (
+      (selectedR !== r || selectedC !== c) &&
+      selectedR !== null &&
+      selectedC !== null
+    ) {
+      if (grid[selectedR][selectedC].status === "editing") {
+        cancelEdit(selectedR, selectedC);
+      }
+    }
+    selectedR = r;
+    selectedC = c;
     startTimer();
+  }
 
-    // Highlight headers
-    activeRow = r;
-    activeCol = c;
+  function moveSelection(dr: number, dc: number) {
+    if (selectedR === null || selectedC === null) {
+      selectCell(1, 1);
+      return;
+    }
 
-    // Reset others
-    grid = grid.map((row) =>
-      row.map((cell) => {
-        if (cell.status === "editing") {
-          return { ...cell, status: cell.value ? "filled" : "empty" };
-        }
-        return cell;
-      }),
-    );
+    let newR = selectedR + dr;
+    let newC = selectedC + dc;
 
-    // Set current to editing
+    // Wrap columns
+    if (newC > SIZE) {
+      newC = 1;
+      newR++;
+    } else if (newC < 1) {
+      newC = SIZE;
+      newR--;
+    }
+
+    // Bounds check rows
+    if (newR > SIZE || newR < 1) return;
+
+    selectCell(newR, newC);
+  }
+
+  function startEditing(
+    r: number,
+    c: number,
+    initialValue: string | null = null,
+  ) {
+    if (r === 0 || c === 0) return;
+    selectCell(r, c);
+
     grid[r][c].status = "editing";
-    grid[r][c].tempValue = grid[r][c].value;
+
+    // Auto-fill if user started typing a number
+    if (initialValue) {
+      grid[r][c].tempValue = parseInt(initialValue);
+    } else {
+      grid[r][c].tempValue = grid[r][c].value;
+    }
   }
 
   function cancelEdit(r: number, c: number) {
+    // Svelte 5: Direct mutation triggers update
     grid[r][c].status = grid[r][c].value ? "filled" : "empty";
     grid[r][c].tempValue = null;
-    activeRow = null;
-    activeCol = null;
+    // Don't clear selection so user keeps their place
   }
 
   function confirmCell(r: number, c: number) {
     const cell = grid[r][c];
 
-    // Validate input
+    // Basic validation
     if (
       cell.tempValue === null ||
       isNaN(Number(cell.tempValue)) ||
@@ -157,13 +194,17 @@
     const isCorrect = inputVal === cell.answer;
 
     grid[r][c].value = inputVal;
-    activeRow = null;
-    activeCol = null;
 
     if (isCorrect) {
       grid[r][c].status = "correct";
-      checkWin(); // Check if this was the last one
+      checkWin();
+
+      // Feature: Auto-advance on correct
+      moveSelection(0, 1);
+
+      // Revert green to filled after delay
       setTimeout(() => {
+        // Ensure it wasn't changed to something else in the meantime
         if (grid[r][c].status === "correct") {
           grid[r][c].status = "filled";
         }
@@ -173,44 +214,80 @@
     }
   }
 
-  function handleKeydown(e: KeyboardEvent, r: number, c: number) {
-    if (e.key === "Enter") confirmCell(r, c);
-    if (e.key === "Escape") cancelEdit(r, c);
+  // --- Event Handlers ---
+
+  function handleWindowKeydown(e: KeyboardEvent) {
+    // 1. Arrow Navigation
+    if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) {
+      e.preventDefault();
+      const map: Record<string, [number, number]> = {
+        ArrowUp: [-1, 0],
+        ArrowDown: [1, 0],
+        ArrowLeft: [0, -1],
+        ArrowRight: [0, 1],
+      };
+      moveSelection(map[e.key][0], map[e.key][1]);
+      return;
+    }
+
+    if (selectedR === null || selectedC === null) return;
+
+    const cell = grid[selectedR][selectedC];
+    const isEditing = cell.status === "editing";
+
+    // 2. Quick Entry (Type number to start editing immediately)
+    if (!isEditing && /^[0-9]$/.test(e.key)) {
+      e.preventDefault(); // Stop window scroll or other defaults
+      startEditing(selectedR, selectedC, e.key);
+    }
+
+    // 3. Enter to edit
+    if (!isEditing && e.key === "Enter") {
+      e.preventDefault();
+      startEditing(selectedR, selectedC);
+    }
   }
 
-  // --- Global Controls ---
+  function handleInputKeydown(e: KeyboardEvent, r: number, c: number) {
+    e.stopPropagation(); // Don't bubble to window
+
+    if (e.key === "Enter") confirmCell(r, c);
+    if (e.key === "Escape") cancelEdit(r, c);
+    if (e.key === "Tab") {
+      e.preventDefault();
+      confirmCell(r, c);
+      moveSelection(0, e.shiftKey ? -1 : 1);
+    }
+  }
 
   function checkAll() {
     for (let r = 1; r <= SIZE; r++) {
       for (let c = 1; c <= SIZE; c++) {
         const cell = grid[r][c];
         if (cell.value !== null) {
-          if (cell.value === cell.answer) {
-            cell.status = "correct";
+          const correct = cell.value === cell.answer;
+          cell.status = correct ? "correct" : "wrong";
+          if (correct) {
             setTimeout(() => {
               if (grid[r][c].status === "correct") grid[r][c].status = "filled";
             }, 2000);
-          } else {
-            cell.status = "wrong";
           }
         }
       }
     }
-    grid = grid;
     checkWin();
   }
 
   function clearAll() {
     if (!confirm("Are you sure you want to clear the whole board?")) return;
 
-    // Reset Game State
+    // Reset Game
     startTime = null;
     elapsed = 0;
     gameFinished = false;
     if (timerInterval) clearInterval(timerInterval);
-    activeRow = null;
-    activeCol = null;
 
+    // Reset Grid (mutation is reactive)
     for (let r = 1; r <= SIZE; r++) {
       for (let c = 1; c <= SIZE; c++) {
         grid[r][c].value = null;
@@ -218,9 +295,12 @@
         grid[r][c].status = "empty";
       }
     }
-    grid = grid;
+    selectedR = null;
+    selectedC = null;
   }
 </script>
+
+<svelte:window onkeydown={handleWindowKeydown} />
 
 <div class="container">
   <div class="header-section">
@@ -239,11 +319,11 @@
     </div>
   </div>
 
-  <div class="grid-wrapper">
+  <div class="grid-wrapper" style="--SIZE: {SIZE}">
     <div class="grid-row header-row">
       <div class="cell corner">X</div>
       {#each Array(SIZE) as _, i}
-        <div class="cell header" class:highlighted={activeCol === i + 1}>
+        <div class="cell header" class:highlighted={selectedC === i + 1}>
           {i + 1}
         </div>
       {/each}
@@ -251,26 +331,24 @@
 
     {#each grid.slice(1) as row, r}
       <div class="grid-row">
-        <div class="cell header" class:highlighted={activeRow === r + 1}>
+        <div class="cell header" class:highlighted={selectedR === r + 1}>
           {r + 1}
         </div>
 
-        {#each row.slice(1) as cell, c}
-          {@const actualR = r + 1}
-          {@const actualC = c + 1}
-
+        {#snippet Cell(cell, isSelected, actualR, actualC)}
           <div
             class="cell interactive {cell.status}"
-            on:click={() => activateCell(actualR, actualC)}
+            class:selected={isSelected}
+            onclick={() => startEditing(actualR, actualC)}
             role="button"
-            tabindex="0"
+            tabindex="-1"
           >
             {#if cell.status === "editing"}
               <div class="input-area">
                 <input
                   type="number"
                   bind:value={cell.tempValue}
-                  on:keydown={(e) => handleKeydown(e, actualR, actualC)}
+                  onkeydown={(e) => handleInputKeydown(e, actualR, actualC)}
                   autoFocus
                 />
               </div>
@@ -278,31 +356,43 @@
               <div class="actions" transition:fly={{ y: -20, duration: 250 }}>
                 <button
                   class="btn-icon check"
-                  on:click|stopPropagation={() => confirmCell(actualR, actualC)}
+                  onclick={(e) => {
+                    e.stopPropagation();
+                    confirmCell(actualR, actualC);
+                  }}
                 >
                   ✓
                 </button>
                 <button
                   class="btn-icon cancel"
-                  on:click|stopPropagation={() => cancelEdit(actualR, actualC)}
+                  onclick={(e) => {
+                    e.stopPropagation();
+                    cancelEdit(actualR, actualC);
+                  }}
                 >
                   ✕
                 </button>
               </div>
             {:else}
-              <span class="value">
-                {cell.value ?? ""}
-              </span>
+              <span class="value">{cell.value ?? ""}</span>
             {/if}
           </div>
+        {/snippet}
+
+        {#each row.slice(1) as cell, c}
+          {@const actualR = r + 1}
+          {@const actualC = c + 1}
+          {@const isSelected = selectedR === actualR && selectedC === actualC}
+
+          {@render Cell(cell, isSelected, actualR, actualC)}
         {/each}
       </div>
     {/each}
   </div>
 
   <div class="controls">
-    <button class="big-btn check-all" on:click={checkAll}>Check All</button>
-    <button class="big-btn clear-all" on:click={clearAll}>Clear Board</button>
+    <button class="big-btn check-all" onclick={checkAll}>Check All</button>
+    <button class="big-btn clear-all" onclick={clearAll}>Clear Board</button>
   </div>
 </div>
 
@@ -310,25 +400,18 @@
   /* --- High Contrast / Dark Mode Theme --- */
   :root {
     --color-bg: #18181b;
-
-    /* Headers */
     --color-header: #2563eb;
     --color-header-text: #ffffff;
-    --color-header-highlight: #facc15; /* Yellow highlight for headers */
+    --color-header-highlight: #facc15;
     --color-header-highlight-text: #000000;
-
-    /* Cells */
     --color-cell-bg: #27272a;
     --color-cell-filled: #3f3f46;
     --color-cell-hover: #52525b;
     --color-text: #f4f4f5;
-
-    /* States */
     --color-correct: #16a34a;
     --color-wrong: #dc2626;
-    --color-editing: #facc15; /* Bright Yellow */
+    --color-editing: #facc15;
     --color-editing-text: #000000;
-
     --shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
     --radius: 6px;
   }
@@ -340,6 +423,8 @@
     align-items: center;
     padding: 2rem;
     min-height: 100vh;
+    background-color: var(--color-bg);
+    color: var(--color-text);
   }
 
   .header-section {
@@ -347,8 +432,6 @@
     flex-direction: column;
     align-items: center;
     margin-bottom: 1.5rem;
-    width: 100%;
-    max-width: 600px;
   }
 
   h1 {
@@ -374,24 +457,21 @@
     border: 1px solid #3f3f46;
     min-width: 100px;
   }
-
   .stat-box.best {
     border-color: var(--color-correct);
   }
-
   .stat-box .label {
     font-size: 0.8rem;
     color: #a1a1aa;
     text-transform: uppercase;
   }
-
   .stat-box .value {
     font-size: 1.5rem;
     font-weight: bold;
     color: white;
   }
 
-  /* --- Grid Layout --- */
+  /* --- Grid --- */
   .grid-wrapper {
     display: flex;
     flex-direction: column;
@@ -406,11 +486,11 @@
 
   .grid-row {
     display: grid;
-    grid-template-columns: 50px repeat(10, 50px);
+    grid-template-columns: 50px repeat(var(--SIZE), 50px);
     gap: 4px;
   }
 
-  /* --- Cell Styling --- */
+  /* --- Cells --- */
   .cell {
     width: 50px;
     height: 50px;
@@ -430,18 +510,17 @@
     color: var(--color-header-text);
     border: 1px solid #1e40af;
     transition:
-      background-color 0.2s,
-      color 0.2s;
+      transform 0.2s,
+      background-color 0.2s;
   }
 
-  /* Highlight state for headers */
   .header.highlighted {
     background-color: var(--color-header-highlight);
     color: var(--color-header-highlight-text);
-    border-color: white;
-    transform: scale(1.05);
+    transform: scale(1.1);
     z-index: 5;
     box-shadow: 0 0 10px rgba(250, 204, 21, 0.5);
+    border-color: white;
   }
 
   .corner {
@@ -456,13 +535,18 @@
     border: 1px solid #3f3f46;
     overflow: hidden;
   }
-
   .interactive:hover {
     background-color: var(--color-cell-hover);
-    border-color: #71717a;
   }
 
-  /* --- States --- */
+  /* Selection State (Blue Ring) */
+  .cell.selected {
+    border: 2px solid #3b82f6;
+    box-shadow: inset 0 0 0 1px #3b82f6;
+    z-index: 10;
+  }
+
+  /* --- Interactive States --- */
   .interactive.editing {
     background-color: transparent;
     border: 2px solid white;
@@ -477,25 +561,20 @@
   .interactive.correct {
     background-color: var(--color-correct);
     color: white;
-    border-color: #15803d;
     animation: pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   }
-
   .interactive.wrong {
     background-color: var(--color-wrong);
     color: white;
-    border-color: #b91c1c;
     animation: shake 0.4s ease-in-out;
   }
-
   .interactive.filled {
     background-color: var(--color-cell-filled);
     color: #e4e4e7;
     border: 1px solid #52525b;
   }
 
-  /* --- Editing Layout --- */
-
+  /* --- Editing UI --- */
   .input-area {
     width: 100%;
     height: 100%;
@@ -504,9 +583,9 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    border-radius: 4px 4px 0 0;
     position: relative;
     z-index: 2;
-    border-radius: 4px 4px 0 0;
   }
 
   input {
@@ -516,20 +595,12 @@
     background: transparent;
     text-align: center;
     font-size: 1.2rem;
-    font-family: inherit;
     font-weight: bold;
-    color: inherit;
     outline: none;
     padding: 0;
-    margin: 0;
   }
 
-  input::-webkit-outer-spin-button,
-  input::-webkit-inner-spin-button {
-    -webkit-appearance: none;
-    margin: 0;
-  }
-
+  /* Pop-under buttons */
   .actions {
     position: absolute;
     top: 100%;
@@ -541,7 +612,6 @@
     border: 2px solid white;
     border-top: none;
     border-radius: 0 0 6px 6px;
-    box-sizing: border-box;
     overflow: hidden;
   }
 
@@ -550,33 +620,29 @@
     border: none;
     font-size: 1.2rem;
     cursor: pointer;
+    font-weight: 900;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-weight: 900;
   }
-
   .check {
     background-color: #16a34a;
     color: white;
   }
-
   .cancel {
     background-color: #dc2626;
     color: white;
   }
-
   .btn-icon:hover {
     filter: brightness(1.1);
   }
 
-  /* --- Footer Controls --- */
+  /* --- Controls --- */
   .controls {
     margin-top: 2rem;
     display: flex;
     gap: 1rem;
   }
-
   .big-btn {
     border: none;
     padding: 12px 24px;
@@ -589,29 +655,24 @@
     font-family: inherit;
     border: 2px solid transparent;
   }
-
   .check-all {
-    background-color: transparent;
     border-color: #16a34a;
     color: #16a34a;
+    background: transparent;
   }
-
   .check-all:hover {
     background-color: #16a34a;
     color: #000;
   }
-
   .clear-all {
-    background-color: transparent;
     border-color: #3f3f46;
     color: #a1a1aa;
+    background: transparent;
   }
-
   .clear-all:hover {
     border-color: #dc2626;
     color: #dc2626;
   }
-
   .big-btn:active {
     transform: translateY(2px);
   }
@@ -624,7 +685,6 @@
       transform: scale(1);
     }
   }
-
   @keyframes shake {
     0%,
     100% {
