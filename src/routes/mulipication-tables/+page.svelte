@@ -1,10 +1,16 @@
 <script lang="ts">
   import { fly } from "svelte/transition";
-  import { onMount, onDestroy } from "svelte";
+  import { onMount, onDestroy, flushSync } from "svelte";
   import confetti from "canvas-confetti";
 
   // --- Configuration ---
-  const SIZE = 12;
+  const LEVELS = {
+    Easy: 5,
+    Medium: 8,
+    Hard: 12,
+  } as const;
+
+  type Level = keyof typeof LEVELS;
 
   // --- Types ---
   type CellState = "empty" | "editing" | "correct" | "wrong" | "filled";
@@ -17,11 +23,14 @@
   }
 
   // --- State Initialization ---
-  function createGrid(): Cell[][] {
+  let currentLevel = $state<Level>("Hard");
+  let SIZE = $derived(LEVELS[currentLevel]);
+
+  function createGrid(s: number): Cell[][] {
     const newGrid: Cell[][] = [];
-    for (let r = 0; r <= SIZE; r++) {
+    for (let r = 0; r <= s; r++) {
       let row: Cell[] = [];
-      for (let c = 0; c <= SIZE; c++) {
+      for (let c = 0; c <= s; c++) {
         row.push({
           value: null,
           tempValue: null,
@@ -35,7 +44,7 @@
   }
 
   // Svelte 5: Deeply reactive state object
-  let grid = $state(createGrid());
+  let grid = $state(createGrid(LEVELS["Hard"]));
 
   // Selection State
   let selectedR = $state<number | null>(null);
@@ -49,11 +58,19 @@
   let timerInterval: any = null;
 
   // --- Lifecycle ---
-  onMount(() => {
-    const storedBest = localStorage.getItem("multiplication-best-time");
+  function loadBestTime() {
+    const storedBest = localStorage.getItem(
+      `multiplication-best-time-${currentLevel}`,
+    );
     if (storedBest) {
       bestTime = parseFloat(storedBest);
+    } else {
+      bestTime = null;
     }
+  }
+
+  onMount(() => {
+    loadBestTime();
   });
 
   onDestroy(() => {
@@ -73,6 +90,27 @@
     timerInterval = setInterval(() => {
       elapsed = (Date.now() - startTime!) / 1000;
     }, 100);
+  }
+
+  function setLevel(level: Level) {
+    if (currentLevel === level) return;
+
+    const update = () => {
+      currentLevel = level;
+      // We need to fully reset the game state when level changes
+      resetGame(true);
+    };
+
+    // Use View Transition API if available for the slide animation
+    if (document.startViewTransition) {
+      document.startViewTransition(() => {
+        // flushSync forces the DOM to update synchronously inside the transition
+        // so the browser can capture the 'after' state immediately
+        flushSync(update);
+      });
+    } else {
+      update();
+    }
   }
 
   function checkWin() {
@@ -97,7 +135,10 @@
 
       if (bestTime === null || finalTime < bestTime) {
         bestTime = finalTime;
-        localStorage.setItem("multiplication-best-time", finalTime.toString());
+        localStorage.setItem(
+          `multiplication-best-time-${currentLevel}`,
+          finalTime.toString(),
+        );
       }
 
       confetti({
@@ -112,7 +153,6 @@
 
   function selectCell(r: number, c: number) {
     if (r < 1 || r > SIZE || c < 1 || c > SIZE) return;
-
     // Close previous edit if changing selection
     if (
       (selectedR !== r || selectedC !== c) &&
@@ -194,14 +234,11 @@
     const isCorrect = inputVal === cell.answer;
 
     grid[r][c].value = inputVal;
-
     if (isCorrect) {
       grid[r][c].status = "correct";
       checkWin();
-
       // Feature: Auto-advance on correct
       moveSelection(0, 1);
-
       // Revert green to filled after delay
       setTimeout(() => {
         // Ensure it wasn't changed to something else in the meantime
@@ -237,7 +274,8 @@
 
     // 2. Quick Entry (Type number to start editing immediately)
     if (!isEditing && /^[0-9]$/.test(e.key)) {
-      e.preventDefault(); // Stop window scroll or other defaults
+      e.preventDefault();
+      // Stop window scroll or other defaults
       startEditing(selectedR, selectedC, e.key);
     }
 
@@ -249,7 +287,8 @@
   }
 
   function handleInputKeydown(e: KeyboardEvent, r: number, c: number) {
-    e.stopPropagation(); // Don't bubble to window
+    e.stopPropagation();
+    // Don't bubble to window
 
     if (e.key === "Enter") confirmCell(r, c);
     if (e.key === "Escape") cancelEdit(r, c);
@@ -278,25 +317,29 @@
     checkWin();
   }
 
-  function clearAll() {
-    if (!confirm("Are you sure you want to clear the whole board?")) return;
-
-    // Reset Game
+  function resetGame(forceRebuild = false) {
+    // Reset Game State
     startTime = null;
     elapsed = 0;
     gameFinished = false;
     if (timerInterval) clearInterval(timerInterval);
-
-    // Reset Grid (mutation is reactive)
-    for (let r = 1; r <= SIZE; r++) {
-      for (let c = 1; c <= SIZE; c++) {
-        grid[r][c].value = null;
-        grid[r][c].tempValue = null;
-        grid[r][c].status = "empty";
-      }
-    }
     selectedR = null;
     selectedC = null;
+
+    // Refresh best time for current level
+    loadBestTime();
+
+    // Rebuild or Clear Grid
+    if (forceRebuild) {
+      grid = createGrid(LEVELS[currentLevel]);
+    } else {
+      grid = createGrid(LEVELS[currentLevel]);
+    }
+  }
+
+  function clearAll() {
+    if (!confirm("Are you sure you want to clear the whole board?")) return;
+    resetGame(false);
   }
 </script>
 
@@ -305,6 +348,25 @@
 <div class="container">
   <div class="header-section">
     <h1>Times Table Challenge</h1>
+
+    <div class="levels">
+      {#each Object.keys(LEVELS) as level}
+        <button
+          class="level-btn"
+          class:active={currentLevel === level}
+          onclick={() => setLevel(level as Level)}
+        >
+          {#if currentLevel === level}
+            <div
+              class="active-pill"
+              style="view-transition-name: active-pill"
+            ></div>
+          {/if}
+          <span class="btn-text">{level}</span>
+        </button>
+      {/each}
+    </div>
+
     <div class="stats">
       <div class="stat-box">
         <span class="label">Time</span>
@@ -312,7 +374,7 @@
       </div>
       {#if bestTime !== null}
         <div class="stat-box best">
-          <span class="label">Best</span>
+          <span class="label">Best ({currentLevel})</span>
           <span class="value">{formatTime(bestTime)}</span>
         </div>
       {/if}
@@ -432,19 +494,70 @@
     flex-direction: column;
     align-items: center;
     margin-bottom: 1.5rem;
+    gap: 1rem;
   }
 
   h1 {
     color: #facc15;
     text-transform: uppercase;
     letter-spacing: 2px;
-    margin-bottom: 1rem;
+    margin-bottom: 0.5rem;
     text-align: center;
+  }
+
+  /* Levels */
+  .levels {
+    display: flex;
+    gap: 0.25rem;
+    background: #27272a;
+    padding: 4px;
+    border-radius: var(--radius);
+    border: 1px solid #3f3f46;
+  }
+
+  .level-btn {
+    position: relative; /* Contain the absolute pill */
+    background: transparent;
+    border: none;
+    color: #a1a1aa;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+    font-family: inherit;
+    transition: color 0.2s;
+    outline: none;
+  }
+
+  .level-btn:hover:not(.active) {
+    background: #3f3f46;
+    color: white;
+  }
+
+  .level-btn.active {
+    color: white;
+    /* Background is handled by .active-pill */
+  }
+
+  /* Sliding Pill */
+  .active-pill {
+    position: absolute;
+    inset: 0;
+    background-color: var(--color-header);
+    border-radius: 4px;
+    z-index: 0;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  }
+
+  .btn-text {
+    position: relative;
+    z-index: 1;
   }
 
   .stats {
     display: flex;
     gap: 2rem;
+    margin-top: 0.5rem;
   }
 
   .stat-box {
