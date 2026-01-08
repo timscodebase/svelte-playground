@@ -192,8 +192,8 @@
     color: var(--text-muted);
   }
   .value.streak.fire {
-    color: #f97316;
-    text-shadow: 0 0 10px rgba(249, 115, 22, 0.4);
+    color: oklch(70% 0.18 50);
+    text-shadow: 0 0 10px rgba(from oklch(70% 0.18 50) r g b / 0.4);
   }
   .game-area {
     width: 100%;

@@ -1,8 +1,33 @@
-# sv
+# MathPlayground
 
-Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
+Welcome to MathPlayground, a collection of interactive web-based games designed to help improve math skills in a fun and engaging way. This project is built using SvelteKit and modern web technologies.
 
-## Creating a project
+## Games
+
+Here's a list of the games available in MathPlayground:
+
+### [Times Table Challenge](/mulipication-tables)
+Master your multiplication with this interactive grid challenge.
+
+### [Grid Chase](/grid-chase)
+Reverse multiplication! Find all grid cells that match the target.
+
+### [Arithmetic Sprint](/flash-cards)
+Race against the clock to solve math problems.
+
+### [Equation Builder](/equation-builder)
+Drag and drop puzzles. Balance the equation.
+
+### [Pizza Slicer](/fraction-pizza)
+Visual fractions game. Slice and serve the correct portion.
+
+---
+
+## Technical Information
+
+This project is a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
+
+### Creating a project
 
 If you're seeing this, you've probably already done this step. Congrats!
 
@@ -14,25 +39,25 @@ npx sv create
 npx sv create my-app
 ```
 
-## Developing
+### Developing
 
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
+Once you've created a project and installed dependencies with `pnpm install`, start a development server:
 
 ```sh
-npm run dev
+pnpm run dev
 
 # or start the server and open the app in a new browser tab
-npm run dev -- --open
+pnpm run dev -- --open
 ```
 
-## Building
+### Building
 
 To create a production version of your app:
 
 ```sh
-npm run build
+pnpm run build
 ```
 
-You can preview the production build with `npm run preview`.
+You can preview the production build with `pnpm run preview`.
 
 > To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.

@@ -1,24 +1,24 @@
 /* src/routes/styles.css */
 :root {
   /* Default to Light Mode */
-  --bg-app: #f4f4f5;
-  --bg-panel: #ffffff;
-  --bg-panel-hover: #f3f4f6;
+  --bg-app: oklch(96% 0 0);
+  --bg-panel: oklch(99% 0 0);
+  --bg-panel-hover: oklch(from var(--bg-panel) calc(l - 0.05) c h);
 
-  --text-main: #18181b;
-  --text-muted: #52525b;
-  --text-inverse: #ffffff;
+  --text-main: oklch(20% 0 0);
+  --text-muted: oklch(45% 0 0);
+  --text-inverse: oklch(99% 0 0);
 
-  --primary: #3b82f6; /* Blue */
-  --primary-hover: #2563eb;
+  --primary: oklch(65.2% 0.16 248);
+  --primary-hover: oklch(from var(--primary) calc(l - 0.1) c h);
 
-  --accent: #eab308; /* Yellow/Gold */
-  --accent-fg: #000;
+  --accent: oklch(75% 0.15 85);
+  --accent-fg: oklch(20% 0 0);
 
-  --success: #22c55e;
-  --error: #ef4444;
+  --success: oklch(68% 0.18 140);
+  --error: oklch(65% 0.2 25);
 
-  --border: #e4e4e7;
+  --border: oklch(90% 0 0);
   --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
   --radius: 8px;
 
@@ -27,24 +27,24 @@
 
 /* Dark Mode Overrides */
 :root.dark {
-  --bg-app: #18181b;
-  --bg-panel: #27272a;
-  --bg-panel-hover: #3f3f46;
+  --bg-app: oklch(20% 0 0);
+  --bg-panel: oklch(27% 0.02 248);
+  --bg-panel-hover: oklch(from var(--bg-panel) calc(l + 0.1) c h);
 
-  --text-main: #f4f4f5;
-  --text-muted: #a1a1aa;
-  --text-inverse: #000000;
+  --text-main: oklch(96% 0 0);
+  --text-muted: oklch(70% 0 0);
+  --text-inverse: oklch(20% 0 0);
 
-  --primary: #3b82f6;
-  --primary-hover: #60a5fa;
+  --primary: oklch(65.2% 0.16 248);
+  --primary-hover: oklch(from var(--primary) calc(l + 0.1) c h);
 
-  --accent: #facc15;
-  --accent-fg: #000;
+  --accent: oklch(80% 0.16 85);
+  --accent-fg: oklch(20% 0 0);
 
-  --success: #16a34a;
-  --error: #dc2626;
+  --success: oklch(65% 0.15 140);
+  --error: oklch(60% 0.18 25);
 
-  --border: #3f3f46;
+  --border: oklch(30% 0.02 248);
   --shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
 
   color-scheme: dark;

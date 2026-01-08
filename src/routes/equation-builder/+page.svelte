@@ -268,7 +268,7 @@
     background: var(--primary);
   }
   .tile.operator {
-    background: #f97316;
+    background: oklch(70% 0.18 50);
   }
   .btn {
     margin-top: 2rem;

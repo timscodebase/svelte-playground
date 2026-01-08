@@ -134,7 +134,7 @@
           viewBox="0 0 {VIEWBOX_SIZE} {VIEWBOX_SIZE}"
           class:shake={gameState === "wrong"}
         >
-          <circle cx={CENTER} cy={CENTER} r={RADIUS + 4} fill="#eab308" />
+          <circle cx={CENTER} cy={CENTER} r={RADIUS + 4} fill="oklch(75% 0.15 85)" />
           {#each slices as slice, i}
             <path
               d={slice.d}
@@ -144,8 +144,8 @@
               role="button"
               tabindex="0"
               onkeydown={(e) => e.key === "Enter" && toggleSlice(i)}
-              fill={selectedSlices[i] ? "#ef4444" : "#fef08a"}
-              stroke="#b45309"
+              fill={selectedSlices[i] ? "oklch(65% 0.2 25)" : "oklch(95% 0.08 85)"}
+              stroke="oklch(50% 0.1 50)"
               stroke-width="2"
             />
             {#if selectedSlices[i]}
@@ -160,7 +160,7 @@
                 cx={pepX}
                 cy={pepY}
                 r="6"
-                fill="#7f1d1d"
+                fill="oklch(30% 0.1 10)"
                 opacity="0.8"
                 pointer-events="none"
               />
