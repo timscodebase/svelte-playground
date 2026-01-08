@@ -6,19 +6,19 @@ Welcome to MathPlayground, a collection of interactive web-based games designed 
 
 Here's a list of the games available in MathPlayground:
 
-### [Times Table Challenge](/mulipication-tables)
+### Times Table Challenge
 Master your multiplication with this interactive grid challenge.
 
-### [Grid Chase](/grid-chase)
+### Grid Chase
 Reverse multiplication! Find all grid cells that match the target.
 
-### [Arithmetic Sprint](/flash-cards)
+### Arithmetic Sprint
 Race against the clock to solve math problems.
 
-### [Equation Builder](/equation-builder)
+### Equation Builder
 Drag and drop puzzles. Balance the equation.
 
-### [Pizza Slicer](/fraction-pizza)
+### Pizza Slicer
 Visual fractions game. Slice and serve the correct portion.
 
 ---
