@@ -3,6 +3,8 @@
   import { fly } from "svelte/transition";
   import confetti from "canvas-confetti";
   import { playSound } from "$lib";
+  import gsap from "gsap";
+  import Pizza from "$lib/components/Pizza.svelte";
 
   const LEVELS = { Easy: [2, 3, 4], Medium: [5, 6, 8], Hard: [7, 9, 10, 12] };
   type Level = keyof typeof LEVELS;
@@ -10,31 +12,30 @@
   let currentLevel = $state<Level>("Easy");
   let score = $state(0);
   let streak = $state(0);
-  let numerator = $state(1);
+  let numerator1 = $state(1);
+  let numerator2 = $state(1);
+  let operator = $state("+");
   let denominator = $state(2);
   let selectedSlices = $state<boolean[]>([]);
   let gameState = $state<"playing" | "correct" | "wrong">("playing");
   let feedbackMessage = $state("");
 
-  const VIEWBOX_SIZE = 200;
-  const CENTER = VIEWBOX_SIZE / 2;
-  const RADIUS = 90;
+  function saveState() {
+    const gameState = {
+      currentLevel,
+      score,
+      streak,
+      numerator1,
+      numerator2,
+      operator,
+      denominator,
+      selectedSlices,
+    };
+    localStorage.setItem("fraction-pizza-state", JSON.stringify(gameState));
+  }
 
-  let slices = $derived.by(() => {
-    const sliceArray = [];
-    const anglePerSlice = (2 * Math.PI) / denominator;
-    for (let i = 0; i < denominator; i++) {
-      const startAngle = i * anglePerSlice - Math.PI / 2;
-      const endAngle = (i + 1) * anglePerSlice - Math.PI / 2;
-      const x1 = CENTER + RADIUS * Math.cos(startAngle);
-      const y1 = CENTER + RADIUS * Math.sin(startAngle);
-      const x2 = CENTER + RADIUS * Math.cos(endAngle);
-      const y2 = CENTER + RADIUS * Math.sin(endAngle);
-      const largeArcFlag = anglePerSlice > Math.PI ? 1 : 0;
-      const pathData = `M ${CENTER} ${CENTER} L ${x1} ${y1} A ${RADIUS} ${RADIUS} 0 ${largeArcFlag} 1 ${x2} ${y2} Z`;
-      sliceArray.push({ id: i, d: pathData });
-    }
-    return sliceArray;
+  $effect(() => {
+    saveState();
   });
 
   function generateLevel() {
@@ -45,19 +46,27 @@
       possibleDenominators[
         Math.floor(Math.random() * possibleDenominators.length)
       ];
-    numerator = Math.floor(Math.random() * denominator) + 1;
-    selectedSlices = new Array(denominator).fill(false);
+    const n1 = Math.floor(Math.random() * (denominator - 1)) + 1;
+    const n2 = Math.floor(Math.random() * (denominator - n1)) + 1;
+    numerator1 = n1;
+    numerator2 = n2;
+    selectedSlices = 0;
   }
 
   function toggleSlice(index: number) {
     if (gameState !== "playing") return;
-    selectedSlices[index] = !selectedSlices[index];
+    if (selectedSlices === index + 1) {
+      selectedSlices = index;
+    } else {
+      selectedSlices = index + 1;
+    }
     playSound("pop");
   }
 
+  const answer = $derived(numerator1 + numerator2);
+
   function checkAnswer() {
-    const selectedCount = selectedSlices.filter(Boolean).length;
-    if (selectedCount === numerator) {
+    if (selectedSlices === answer) {
       gameState = "correct";
       score += 10;
       streak += 1;
@@ -67,7 +76,7 @@
         particleCount: 100,
         spread: 70,
         origin: { y: 0.6 },
-        colors: ["oklch(65% 0.2 25)", "oklch(75% 0.15 85)", "oklch(99% 0 0)"],
+        colors: ["#ef4444", "#eab308", "#ffffff"],
       });
       setTimeout(() => {
         generateLevel();
@@ -75,18 +84,32 @@
     } else {
       gameState = "wrong";
       streak = 0;
-      feedbackMessage = `Oops! You selected ${selectedCount}, but we needed ${numerator}.`;
+      feedbackMessage = `Oops! You selected ${selectedSlices}, but we needed ${answer}.`;
       playSound("wrong");
+      gsap.to("svg", { x: 5, duration: 0.05, yoyo: true, repeat: 5 });
       setTimeout(() => {
         gameState = "playing";
         feedbackMessage = "";
-        selectedSlices = new Array(denominator).fill(false);
+        selectedSlices = 0;
       }, 2000);
     }
   }
 
   onMount(() => {
-    generateLevel();
+    const savedState = localStorage.getItem("fraction-pizza-state");
+    if (savedState) {
+      const gameState = JSON.parse(savedState);
+      currentLevel = gameState.currentLevel;
+      score = gameState.score;
+      streak = gameState.streak;
+      numerator1 = gameState.numerator1;
+      numerator2 = gameState.numerator2;
+      operator = gameState.operator;
+      denominator = gameState.denominator;
+      selectedSlices = gameState.selectedSlices;
+    } else {
+      generateLevel();
+    }
   });
 </script>
 
@@ -94,7 +117,9 @@
   <aside class="sidebar">
     <h2>How to Play</h2>
     <ul>
-      <li>Target: <strong>{numerator}/{denominator}</strong>.</li>
+      <li>
+        Target: <strong>{numerator1}/{denominator} + {numerator2}/{denominator}</strong>
+      </li>
       <li>Click slices to select pieces.</li>
       <li>Click <strong>Check Order</strong>.</li>
     </ul>
@@ -124,50 +149,21 @@
     <div class="game-area">
       <div class="instruction">
         <p>
-          Select <span class="highlight">{numerator}</span> /
-          <span class="highlight">{denominator}</span> of the pizza
+          Select the correct number of slices to solve the equation.
         </p>
       </div>
 
-      <div class="pizza-wrapper">
-        <svg
-          viewBox="0 0 {VIEWBOX_SIZE} {VIEWBOX_SIZE}"
-          class:shake={gameState === "wrong"}
-        >
-          <circle cx={CENTER} cy={CENTER} r={RADIUS + 4} fill="oklch(75% 0.15 85)" />
-          {#each slices as slice, i}
-            <path
-              d={slice.d}
-              class="slice"
-              class:selected={selectedSlices[i]}
-              onclick={() => toggleSlice(i)}
-              role="button"
-              tabindex="0"
-              onkeydown={(e) => e.key === "Enter" && toggleSlice(i)}
-              fill={selectedSlices[i] ? "oklch(65% 0.2 25)" : "oklch(95% 0.08 85)"}
-              stroke="oklch(50% 0.1 50)"
-              stroke-width="2"
-            />
-            {#if selectedSlices[i]}
-              {@const angle =
-                (i * (2 * Math.PI)) / denominator -
-                Math.PI / 2 +
-                (2 * Math.PI) / denominator / 2}
-              {@const pepR = RADIUS * 0.6}
-              {@const pepX = CENTER + pepR * Math.cos(angle)}
-              {@const pepY = CENTER + pepR * Math.sin(angle)}
-              <circle
-                cx={pepX}
-                cy={pepY}
-                r="6"
-                fill="oklch(30% 0.1 10)"
-                opacity="0.8"
-                pointer-events="none"
-              />
-            {/if}
-          {/each}
-          <circle cx={CENTER} cy={CENTER} r="0" fill="transparent" />
-        </svg>
+      <div class="pizza-equation">
+        <Pizza {denominator} numerator={numerator1} />
+        <span class="operator">{operator}</span>
+        <Pizza {denominator} numerator={numerator2} />
+        <span class="operator">=</span>
+        <Pizza
+          {denominator}
+          numerator={selectedSlices}
+          interactive={true}
+          onclick={(i: number) => toggleSlice(i)}
+        />
       </div>
 
       <div class="feedback-area">
@@ -244,10 +240,15 @@
     font-weight: bold;
     font-size: 2rem;
   }
-  .pizza-wrapper {
-    width: 300px;
-    height: 300px;
+  .pizza-equation {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
     margin-bottom: 2rem;
+  }
+  .operator {
+    font-size: 2rem;
+    font-weight: bold;
   }
   svg {
     width: 100%;
@@ -256,9 +257,7 @@
   }
   .slice {
     cursor: pointer;
-    transition:
-      fill 0.2s ease,
-      transform 0.1s;
+    transition: fill 0.2s ease;
     transform-origin: center;
   }
   .slice:hover {
@@ -266,7 +265,9 @@
     transform: scale(1.02);
     z-index: 10;
   }
-
+  .slice.selected {
+    fill: #ef4444;
+  }
   .check-btn {
     background: var(--accent);
     color: var(--accent-fg);
@@ -297,27 +298,5 @@
   }
   .feedback.wrong {
     color: var(--error);
-  }
-  .shake {
-    animation: shake 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
-  }
-  @keyframes shake {
-    10%,
-    90% {
-      transform: translate3d(-1px, 0, 0);
-    }
-    20%,
-    80% {
-      transform: translate3d(2px, 0, 0);
-    }
-    30%,
-    50%,
-    70% {
-      transform: translate3d(-4px, 0, 0);
-    }
-    40%,
-    60% {
-      transform: translate3d(4px, 0, 0);
-    }
   }
 </style>

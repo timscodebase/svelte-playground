@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { fade } from "svelte/transition";
+  import { onMount } from "svelte";
+  import gsap from "gsap";
 
   const apps = [
     {
@@ -38,9 +39,30 @@
       icon: "🍕",
     },
   ];
+
+  onMount(() => {
+    const tl = gsap.timeline();
+
+    tl.from("header", {
+      y: -30,
+      opacity: 0,
+      duration: 0.8,
+      ease: "power3.out",
+    }).from(
+      ".card",
+      {
+        y: 50,
+        opacity: 0,
+        duration: 0.6,
+        stagger: 0.1,
+        ease: "back.out(1.5)",
+      },
+      "-=0.4",
+    );
+  });
 </script>
 
-<div class="dashboard" in:fade>
+<div class="dashboard">
   <header>
     <h1>Math<span class="highlight">Playground</span></h1>
     <p class="subtitle">Select a tool to begin training</p>
@@ -62,19 +84,6 @@
 </div>
 
 <style>
-  :root {
-    --blue-500: oklch(65.2% 0.16 248);
-    --cyan-400: oklch(80% 0.12 195);
-    --yellow-500: oklch(75% 0.15 85);
-    --orange-500: oklch(70% 0.18 50);
-    --emerald-500: oklch(65% 0.15 150);
-    --teal-400: oklch(75% 0.1 165);
-    --red-500: oklch(65% 0.2 25);
-    --indigo-500: oklch(60% 0.15 260);
-    --purple-500: oklch(60% 0.18 280);
-    --pink-500: oklch(65% 0.2 330);
-    --rose-500: oklch(65% 0.22 10);
-  }
   .dashboard {
     min-height: 100vh;
     padding: 4rem 2rem;
@@ -88,6 +97,7 @@
   header {
     text-align: center;
     margin-bottom: 4rem;
+    opacity: 1; /* GSAP handles opacity */
   }
   h1 {
     font-size: 3rem;
@@ -122,6 +132,7 @@
     height: 100%;
     display: flex;
     flex-direction: column;
+    opacity: 1;
   }
   .card:hover {
     transform: translateY(-5px);
@@ -134,22 +145,22 @@
     background-image: linear-gradient(to right, var(--tw-gradient-stops));
   }
   .from-blue-500 {
-    --tw-gradient-stops: var(--blue-500), var(--cyan-400);
+    --tw-gradient-stops: #3b82f6, #22d3ee;
   }
   .from-yellow-500 {
-    --tw-gradient-stops: var(--yellow-500), var(--orange-500);
+    --tw-gradient-stops: #eab308, #f97316;
   }
   .from-emerald-500 {
-    --tw-gradient-stops: var(--emerald-500), var(--teal-400);
+    --tw-gradient-stops: #10b981, #2dd4bf;
   }
   .from-red-500 {
-    --tw-gradient-stops: var(--red-500), var(--yellow-500);
+    --tw-gradient-stops: #ef4444, #eab308;
   }
   .from-indigo-500 {
-    --tw-gradient-stops: var(--indigo-500), var(--purple-500);
+    --tw-gradient-stops: #6366f1, #a855f7;
   }
   .from-pink-500 {
-    --tw-gradient-stops: var(--pink-500), var(--rose-500);
+    --tw-gradient-stops: #ec4899, #f43f5e;
   }
   .content {
     padding: 2rem;

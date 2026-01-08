@@ -3,6 +3,7 @@
   import { scale } from "svelte/transition";
   import confetti from "canvas-confetti";
   import { playSound } from "$lib";
+  import gsap from "gsap";
 
   const LEVELS = { Easy: 5, Medium: 8, Hard: 12 } as const;
   type Level = keyof typeof LEVELS;
@@ -15,6 +16,23 @@
   let streak = $state(0);
   let foundCells = $state(new Set<string>());
   let totalOccurrences = $state(0);
+
+  function saveState() {
+    const gameState = {
+      currentLevel,
+      score,
+      streak,
+      targetNumber,
+      foundCount,
+      foundCells: Array.from(foundCells),
+      totalOccurrences,
+    };
+    localStorage.setItem("grid-chase-state", JSON.stringify(gameState));
+  }
+
+  $effect(() => {
+    saveState();
+  });
 
   let grid = $derived.by(() => {
     const g = [];
@@ -41,17 +59,38 @@
       }
     }
     totalOccurrences = count;
+    // Animate Grid
+    setTimeout(() => {
+      gsap.fromTo(
+        ".cell",
+        { scale: 0, opacity: 0 },
+        {
+          scale: 1,
+          opacity: 1,
+          duration: 0.3,
+          stagger: { amount: 0.5, grid: [size, size], from: "random" },
+        },
+      );
+    }, 0);
   }
 
   function handleCellClick(r: number, c: number, val: number) {
     const key = `${r},${c}`;
     if (foundCells.has(key)) return;
+    const cellEl = document.querySelector(`.cell[data-key="${key}"]`);
+
     if (val === targetNumber) {
       playSound("pop");
       foundCells.add(key);
       foundCells = new Set(foundCells);
       foundCount++;
       score += 10;
+      if (cellEl)
+        gsap.fromTo(
+          cellEl,
+          { scale: 0.5 },
+          { scale: 1, duration: 0.3, ease: "elastic.out(1, 0.3)" },
+        );
       if (foundCount === totalOccurrences) {
         playSound("win");
         streak++;
@@ -62,6 +101,8 @@
       playSound("wrong");
       streak = 0;
       score = Math.max(0, score - 5);
+      if (cellEl)
+        gsap.to(cellEl, { x: 5, duration: 0.05, yoyo: true, repeat: 3 });
     }
   }
 
@@ -72,7 +113,19 @@
     generateRound();
   }
   onMount(() => {
-    generateRound();
+    const savedState = localStorage.getItem("grid-chase-state");
+    if (savedState) {
+      const gameState = JSON.parse(savedState);
+      currentLevel = gameState.currentLevel;
+      score = gameState.score;
+      streak = gameState.streak;
+      targetNumber = gameState.targetNumber;
+      foundCount = gameState.foundCount;
+      foundCells = new Set(gameState.foundCells);
+      totalOccurrences = gameState.totalOccurrences;
+    } else {
+      generateRound();
+    }
   });
 </script>
 
@@ -122,6 +175,7 @@
           <button
             class="cell"
             class:found={isFound}
+            data-key={`${r},${c}`}
             onclick={() => handleCellClick(r, c, val)}
             disabled={isFound}
           >
@@ -214,7 +268,6 @@
     border-radius: 8px;
     box-shadow: var(--shadow);
   }
-  /* Light mode grid gap fix */
   :global(:root:not(.dark)) .grid {
     background: #ccc;
   }
@@ -241,16 +294,5 @@
   .cell.found {
     background: var(--success);
     color: white;
-    animation: pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  }
-  @keyframes pop {
-    0% {
-      transform: scale(0.5);
-      opacity: 0;
-    }
-    100% {
-      transform: scale(1);
-      opacity: 1;
-    }
   }
 </style>

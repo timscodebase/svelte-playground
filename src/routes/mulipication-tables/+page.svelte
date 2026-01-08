@@ -3,11 +3,11 @@
   import { onMount, onDestroy, flushSync } from "svelte";
   import confetti from "canvas-confetti";
   import { playSound } from "$lib";
+  import gsap from "gsap";
 
   const LEVELS = { Easy: 5, Medium: 8, Hard: 12 } as const;
   type Level = keyof typeof LEVELS;
 
-  // ... (State logic same as previous, just copy logic here)
   type CellState = "empty" | "editing" | "correct" | "wrong" | "filled";
   interface Cell {
     value: number | null;
@@ -44,6 +44,35 @@
   let bestTime = $state<number | null>(null);
   let gameFinished = $state(false);
   let timerInterval: any = null;
+  let streak = $state(0);
+
+  function saveState() {
+    const gameState = {
+      currentLevel,
+      grid,
+      selectedR,
+      selectedC,
+      startTime,
+      elapsed,
+      gameFinished,
+      streak,
+      bestTime,
+    };
+    localStorage.setItem(
+      "multiplication-tables-state",
+      JSON.stringify(gameState),
+    );
+    if (bestTime) {
+      localStorage.setItem(
+        `multiplication-best-time-${currentLevel}`,
+        bestTime.toString(),
+      );
+    }
+  }
+
+  $effect(() => {
+    saveState();
+  });
 
   function loadBestTime() {
     const storedBest = localStorage.getItem(
@@ -52,9 +81,39 @@
     bestTime = storedBest ? parseFloat(storedBest) : null;
   }
 
+  // Animation Helper
+  function animateGridEntrance() {
+    gsap.fromTo(
+      ".cell",
+      { scale: 0, opacity: 0 },
+      {
+        scale: 1,
+        opacity: 1,
+        duration: 0.4,
+        stagger: { amount: 0.5, grid: [SIZE + 1, SIZE + 1], from: "center" },
+        ease: "back.out(2)",
+      },
+    );
+  }
+
   onMount(() => {
-    loadBestTime();
+    const savedState = localStorage.getItem("multiplication-tables-state");
+    if (savedState) {
+      const gameState = JSON.parse(savedState);
+      currentLevel = gameState.currentLevel;
+      grid = gameState.grid;
+      selectedR = gameState.selectedR;
+      selectedC = gameState.selectedC;
+      startTime = gameState.startTime;
+      elapsed = gameState.elapsed;
+      gameFinished = gameState.gameFinished;
+      streak = gameState.streak;
+    } else {
+      loadBestTime();
+      animateGridEntrance();
+    }
   });
+
   onDestroy(() => {
     if (timerInterval) clearInterval(timerInterval);
   });
@@ -79,9 +138,11 @@
       currentLevel = level;
       resetGame(true);
     };
-    if (document.startViewTransition)
+    if (document.startViewTransition) {
       document.startViewTransition(() => flushSync(update));
-    else update();
+    } else {
+      update();
+    }
   }
 
   function checkWin() {
@@ -101,10 +162,6 @@
       elapsed = finalTime;
       if (bestTime === null || finalTime < bestTime) {
         bestTime = finalTime;
-        localStorage.setItem(
-          `multiplication-best-time-${currentLevel}`,
-          finalTime.toString(),
-        );
       }
       playSound("win");
       confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
@@ -155,6 +212,17 @@
     grid[r][c].tempValue = initialValue
       ? parseInt(initialValue)
       : grid[r][c].value;
+
+    // GSAP Pop
+    const cellEl = document.querySelector(
+      `.cell[data-r="${r}"][data-c="${c}"]`,
+    );
+    if (cellEl)
+      gsap.fromTo(
+        cellEl,
+        { scale: 0.8 },
+        { scale: 1.15, duration: 0.2, ease: "back.out(3)" },
+      );
   }
 
   function cancelEdit(r: number, c: number) {
@@ -175,9 +243,17 @@
     const inputVal = Number(cell.tempValue);
     const isCorrect = inputVal === cell.answer;
     grid[r][c].value = inputVal;
+
+    const cellEl = document.querySelector(
+      `.cell[data-r="${r}"][data-c="${c}"]`,
+    );
+
     if (isCorrect) {
       grid[r][c].status = "correct";
       playSound("correct");
+      streak += 1;
+      if (cellEl)
+        gsap.to(cellEl, { scale: 1.2, duration: 0.1, yoyo: true, repeat: 1 });
       checkWin();
       moveSelection(0, 1);
       setTimeout(() => {
@@ -186,6 +262,9 @@
     } else {
       grid[r][c].status = "wrong";
       playSound("wrong");
+      streak = 0;
+      if (cellEl)
+        gsap.to(cellEl, { x: 5, duration: 0.05, yoyo: true, repeat: 5 });
     }
   }
 
@@ -248,8 +327,11 @@
     if (timerInterval) clearInterval(timerInterval);
     selectedR = null;
     selectedC = null;
+    streak = 0;
     loadBestTime();
     grid = createGrid(LEVELS[currentLevel]);
+    // Re-trigger entrance animation after render
+    setTimeout(animateGridEntrance, 0);
   }
 
   function clearAll() {
@@ -300,6 +382,9 @@
             >{formatTime(elapsed)}</span
           >
         </div>
+        <div class="stat-box">
+          <span class="label">Streak</span><span class="value">{streak} 🔥</span>
+        </div>
         {#if bestTime !== null}
           <div class="stat-box best">
             <span class="label">Best ({currentLevel})</span><span class="value"
@@ -331,6 +416,8 @@
               onclick={() => startEditing(actualR, actualC)}
               role="button"
               tabindex="-1"
+              data-r={actualR}
+              data-c={actualC}
             >
               {#if cell.status === "editing"}
                 <div class="input-area">
@@ -384,7 +471,6 @@
     margin-bottom: 1.5rem;
     gap: 1rem;
   }
-
   h1 {
     color: var(--accent);
     text-transform: uppercase;
@@ -392,8 +478,6 @@
     margin-bottom: 0.5rem;
     text-align: center;
   }
-
-  /* Levels */
   .levels {
     display: flex;
     gap: 0.25rem;
@@ -402,7 +486,6 @@
     border-radius: var(--radius);
     border: 1px solid var(--border);
   }
-
   .level-btn {
     position: relative;
     background: transparent;
@@ -416,16 +499,13 @@
     transition: color 0.2s;
     outline: none;
   }
-
   .level-btn:hover:not(.active) {
     background: var(--bg-panel-hover);
     color: var(--text-main);
   }
-
   .level-btn.active {
     color: var(--text-inverse);
   }
-
   .active-pill {
     position: absolute;
     inset: 0;
@@ -434,38 +514,31 @@
     z-index: 0;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
   }
-
   .btn-text {
     position: relative;
     z-index: 1;
   }
-
-  /* Grid */
   .grid-wrapper {
     display: flex;
     flex-direction: column;
     gap: 4px;
-    background: var(--text-main); /* Dark border look */
+    background: var(--text-main);
     padding: 4px;
     border-radius: var(--radius);
     box-shadow: var(--shadow);
     overflow: visible;
   }
-
-  /* Fix for light mode grid gaps showing 'text-main' color (black) - using a variable hack or direct color */
   :global(:root.dark) .grid-wrapper {
     background: #000;
   }
   :global(:root) .grid-wrapper {
     background: #ccc;
   }
-
   .grid-row {
     display: grid;
     grid-template-columns: 50px repeat(var(--SIZE), 50px);
     gap: 4px;
   }
-
   .cell {
     width: 50px;
     height: 50px;
@@ -476,16 +549,14 @@
     font-weight: bold;
     font-size: 1.2rem;
     position: relative;
-    transition: all 0.2s ease;
+    transition: background-color 0.2s ease;
     color: var(--text-main);
   }
-
   .header {
     background-color: var(--primary);
     color: var(--text-inverse);
     border: 1px solid var(--primary-hover);
   }
-
   .header.highlighted {
     background-color: var(--accent);
     color: var(--accent-fg);
@@ -494,12 +565,10 @@
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
     border-color: var(--bg-panel);
   }
-
   .corner {
     background-color: #9333ea;
     color: white;
   }
-
   .interactive {
     background-color: var(--bg-panel);
     cursor: pointer;
@@ -508,38 +577,31 @@
   .interactive:hover {
     background-color: var(--bg-panel-hover);
   }
-
   .cell.selected {
     border: 2px solid var(--primary);
     box-shadow: inset 0 0 0 1px var(--primary);
     z-index: 10;
   }
-
   .interactive.editing {
     background-color: var(--bg-panel);
     border: 2px solid var(--text-main);
-    transform: scale(1.15);
     z-index: 999;
     padding: 0;
     box-shadow: var(--shadow);
     overflow: visible;
   }
-
   .interactive.correct {
     background-color: var(--success);
     color: white;
-    animation: pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   }
   .interactive.wrong {
     background-color: var(--error);
     color: white;
-    animation: shake 0.4s ease-in-out;
   }
   .interactive.filled {
     background-color: var(--bg-panel-hover);
     color: var(--text-muted);
   }
-
   .input-area {
     width: 100%;
     height: 100%;
@@ -552,7 +614,6 @@
     position: relative;
     z-index: 2;
   }
-
   input {
     width: 100%;
     height: 100%;
@@ -565,7 +626,6 @@
     padding: 0;
     color: currentColor;
   }
-
   .actions {
     position: absolute;
     top: 100%;
@@ -579,7 +639,6 @@
     border-radius: 0 0 6px 6px;
     overflow: hidden;
   }
-
   .btn-icon {
     flex: 1;
     border: none;
@@ -600,26 +659,5 @@
   }
   .btn-icon:hover {
     filter: brightness(1.1);
-  }
-
-  @keyframes pop {
-    0% {
-      transform: scale(0.8);
-    }
-    100% {
-      transform: scale(1);
-    }
-  }
-  @keyframes shake {
-    0%,
-    100% {
-      transform: translateX(0);
-    }
-    25% {
-      transform: translateX(-4px);
-    }
-    75% {
-      transform: translateX(4px);
-    }
   }
 </style>

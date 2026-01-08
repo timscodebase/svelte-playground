@@ -4,6 +4,7 @@
   import { scale } from "svelte/transition";
   import confetti from "canvas-confetti";
   import { playSound } from "$lib";
+  import gsap from "gsap";
 
   interface Item {
     id: number;
@@ -17,6 +18,23 @@
   let draggedItem = $state<Item | null>(null);
   let dragSource = $state<"hand" | "slot" | null>(null);
   let dragSourceIndex = $state<number>(-1);
+  let streak = $state(0);
+  let score = $state(0);
+
+  function saveState() {
+    const gameState = {
+      target,
+      hand,
+      slots,
+      score,
+      streak,
+    };
+    localStorage.setItem("equation-builder-state", JSON.stringify(gameState));
+  }
+
+  $effect(() => {
+    saveState();
+  });
 
   function generatePuzzle() {
     const ops = ["+", "-"];
@@ -37,6 +55,15 @@
       { id: 5, val: ops[Math.random() > 0.5 ? 0 : 1], type: "operator" },
     ];
     hand = items.sort(() => Math.random() - 0.5);
+
+    // Animate Tiles
+    setTimeout(() => {
+      gsap.fromTo(
+        ".tile",
+        { y: 20, opacity: 0 },
+        { y: 0, opacity: 1, stagger: 0.05, ease: "back.out(1.5)" },
+      );
+    }, 50);
   }
 
   function checkSolution() {
@@ -54,10 +81,18 @@
     if (val === target) {
       playSound("win");
       confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+      score += 10;
+      streak += 1;
       setTimeout(generatePuzzle, 2000);
     } else {
       playSound("wrong");
+      streak = 0;
     }
+  }
+
+  function skipPuzzle() {
+    streak = 0;
+    generatePuzzle();
   }
 
   function onDragStart(
@@ -111,7 +146,17 @@
     isDragging = false;
   }
   onMount(() => {
-    generatePuzzle();
+    const savedState = localStorage.getItem("equation-builder-state");
+    if (savedState) {
+      const gameState = JSON.parse(savedState);
+      target = gameState.target;
+      hand = gameState.hand;
+      slots = gameState.slots;
+      score = gameState.score;
+      streak = gameState.streak;
+    } else {
+      generatePuzzle();
+    }
   });
 </script>
 
@@ -122,6 +167,7 @@
       <li>Target: <strong>{target}</strong>.</li>
       <li>Drag numbers (blue) and symbols (orange).</li>
       <li>Build an equation!</li>
+      <li>Streak: {streak} 🔥</li>
     </ul>
   </aside>
 
@@ -173,7 +219,7 @@
       {/each}
     </div>
     <div class="controls">
-      <button class="btn" onclick={generatePuzzle}>Skip Puzzle</button>
+      <button class="btn" onclick={skipPuzzle}>Skip Puzzle</button>
     </div>
   </div>
 </div>
@@ -268,7 +314,7 @@
     background: var(--primary);
   }
   .tile.operator {
-    background: oklch(70% 0.18 50);
+    background: #f97316;
   }
   .btn {
     margin-top: 2rem;

@@ -3,8 +3,9 @@
   import { fly, scale } from "svelte/transition";
   import confetti from "canvas-confetti";
   import { playSound } from "$lib";
+  import gsap from "gsap";
 
-  const GAME_DURATION = 60; // seconds
+  const GAME_DURATION = 60;
   type Operator = "+" | "-" | "÷";
   interface Question {
     text: string;
@@ -22,7 +23,37 @@
   let feedback = $state<"none" | "correct" | "wrong">("none");
   let timerInterval: any = null;
 
+  function saveState() {
+    const state = {
+      gameState,
+      score,
+      streak,
+      timeLeft,
+      question,
+    };
+    localStorage.setItem("flash-cards-state", JSON.stringify(state));
+    if (highScore) {
+      localStorage.setItem(
+        "arithmetic-sprint-highscore",
+        highScore.toString(),
+      );
+    }
+  }
+
+  $effect(() => {
+    saveState();
+  });
+
   onMount(() => {
+    const storedState = localStorage.getItem("flash-cards-state");
+    if (storedState) {
+      const savedState = JSON.parse(storedState);
+      gameState = savedState.gameState;
+      score = savedState.score;
+      streak = savedState.streak;
+      timeLeft = savedState.timeLeft;
+      question = savedState.question;
+    }
     const stored = localStorage.getItem("arithmetic-sprint-highscore");
     if (stored) highScore = parseInt(stored);
   });
@@ -54,6 +85,14 @@
         question = { text: `${a} ÷ ${b}`, answer: result };
         break;
     }
+    // Animate Card Entry
+    setTimeout(() => {
+      gsap.fromTo(
+        ".question-card",
+        { scale: 0.9, opacity: 0, y: 20 },
+        { scale: 1, opacity: 1, y: 0, duration: 0.4, ease: "back.out(1.7)" },
+      );
+    }, 0);
   }
 
   function startGame() {
@@ -75,7 +114,6 @@
     gameState = "finished";
     if (highScore === null || score > highScore) {
       highScore = score;
-      localStorage.setItem("arithmetic-sprint-highscore", score.toString());
       playSound("win");
       confetti({ particleCount: 200, spread: 100, origin: { y: 0.6 } });
     }
@@ -97,6 +135,13 @@
       feedback = "wrong";
       playSound("wrong");
       userInput = null;
+      // GSAP Shake
+      gsap.to(".question-card", {
+        x: 10,
+        duration: 0.05,
+        yoyo: true,
+        repeat: 5,
+      });
     }
     setTimeout(() => {
       feedback = "none";
@@ -148,7 +193,7 @@
           <button class="primary-btn" onclick={startGame}>Start Sprint</button>
         </div>
       {:else if gameState === "playing"}
-        <div class="card question-card" class:shake={feedback === "wrong"}>
+        <div class="card question-card">
           <div class="expression">{question.text}</div>
           <div class="equals">=</div>
           <input
@@ -192,8 +237,8 @@
     color: var(--text-muted);
   }
   .value.streak.fire {
-    color: oklch(70% 0.18 50);
-    text-shadow: 0 0 10px rgba(from oklch(70% 0.18 50) r g b / 0.4);
+    color: #f97316;
+    text-shadow: 0 0 10px rgba(249, 115, 22, 0.4);
   }
   .game-area {
     width: 100%;
@@ -267,9 +312,6 @@
     border-color: var(--error) !important;
     color: var(--error);
   }
-  .shake {
-    animation: shake 0.4s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
-  }
   .primary-btn {
     background-color: var(--accent);
     color: var(--accent-fg);
@@ -298,25 +340,6 @@
     }
     50% {
       opacity: 0.5;
-    }
-  }
-  @keyframes shake {
-    10%,
-    90% {
-      transform: translate3d(-1px, 0, 0);
-    }
-    20%,
-    80% {
-      transform: translate3d(2px, 0, 0);
-    }
-    30%,
-    50%,
-    70% {
-      transform: translate3d(-4px, 0, 0);
-    }
-    40%,
-    60% {
-      transform: translate3d(4px, 0, 0);
     }
   }
 </style>
