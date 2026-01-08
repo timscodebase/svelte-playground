@@ -67,7 +67,7 @@
         particleCount: 100,
         spread: 70,
         origin: { y: 0.6 },
-        colors: ["#ef4444", "#eab308", "#ffffff"],
+        colors: ["oklch(65% 0.2 25)", "oklch(75% 0.15 85)", "oklch(99% 0 0)"],
       });
       setTimeout(() => {
         generateLevel();
@@ -266,9 +266,7 @@
     transform: scale(1.02);
     z-index: 10;
   }
-  .slice.selected {
-    fill: #ef4444;
-  }
+
   .check-btn {
     background: var(--accent);
     color: var(--accent-fg);
