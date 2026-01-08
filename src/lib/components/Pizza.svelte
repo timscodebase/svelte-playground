@@ -6,6 +6,7 @@
   let {
     denominator,
     numerator = 0,
+    selectedIndices = null /* New prop for specific slice selection */,
     interactive = false,
     onclick = (i: number) => {},
   } = $props();
@@ -15,6 +16,10 @@
   <svg viewBox="0 0 {VIEWBOX_SIZE} {VIEWBOX_SIZE}">
     <circle cx={CENTER} cy={CENTER} r={RADIUS + 4} fill="#eab308" />
     {#each Array(denominator) as _, i}
+      {@const isSelected = selectedIndices
+        ? selectedIndices.includes(i)
+        : i < numerator}
+
       <path
         d={(() => {
           const anglePerSlice = (2 * Math.PI) / denominator;
@@ -28,10 +33,10 @@
           return `M ${CENTER} ${CENTER} L ${x1} ${y1} A ${RADIUS} ${RADIUS} 0 ${largeArcFlag} 1 ${x2} ${y2} Z`;
         })()}
         class="slice"
-        class:selected={i < numerator}
-        class:interactive={interactive}
+        class:selected={isSelected}
+        class:interactive
         onclick={() => interactive && onclick(i)}
-        fill={i < numerator ? "#ef4444" : "#fef08a"}
+        fill={isSelected ? "#ef4444" : "#fef08a"}
         stroke="#b45309"
         stroke-width="2"
       />

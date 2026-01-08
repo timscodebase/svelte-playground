@@ -16,12 +16,15 @@
   let numerator2 = $state(1);
   let operator = $state("+");
   let denominator = $state(2);
-  let selectedSlices = $state<boolean[]>([]);
+
+  // Changed from number/boolean[] to a Set to track specific slices
+  let selectedSlices = $state(new Set<number>());
+
   let gameState = $state<"playing" | "correct" | "wrong">("playing");
   let feedbackMessage = $state("");
 
   function saveState() {
-    const gameState = {
+    const state = {
       currentLevel,
       score,
       streak,
@@ -29,9 +32,9 @@
       numerator2,
       operator,
       denominator,
-      selectedSlices,
+      selectedSlices: Array.from(selectedSlices), // Persist as array
     };
-    localStorage.setItem("fraction-pizza-state", JSON.stringify(gameState));
+    localStorage.setItem("fraction-pizza-state", JSON.stringify(state));
   }
 
   $effect(() => {
@@ -50,23 +53,29 @@
     const n2 = Math.floor(Math.random() * (denominator - n1)) + 1;
     numerator1 = n1;
     numerator2 = n2;
-    selectedSlices = 0;
+    selectedSlices = new Set();
   }
 
   function toggleSlice(index: number) {
     if (gameState !== "playing") return;
-    if (selectedSlices === index + 1) {
-      selectedSlices = index;
+
+    // Toggle the specific slice index
+    if (selectedSlices.has(index)) {
+      selectedSlices.delete(index);
     } else {
-      selectedSlices = index + 1;
+      selectedSlices.add(index);
     }
+    // Reassign to trigger reactivity
+    selectedSlices = new Set(selectedSlices);
+
     playSound("pop");
   }
 
   const answer = $derived(numerator1 + numerator2);
 
   function checkAnswer() {
-    if (selectedSlices === answer) {
+    // Check if the number of selected slices matches the required answer
+    if (selectedSlices.size === answer) {
       gameState = "correct";
       score += 10;
       streak += 1;
@@ -84,29 +93,32 @@
     } else {
       gameState = "wrong";
       streak = 0;
-      feedbackMessage = `Oops! You selected ${selectedSlices}, but we needed ${answer}.`;
+      feedbackMessage = `Oops! You selected ${selectedSlices.size}, but we needed ${answer}.`;
       playSound("wrong");
       gsap.to("svg", { x: 5, duration: 0.05, yoyo: true, repeat: 5 });
       setTimeout(() => {
         gameState = "playing";
         feedbackMessage = "";
-        selectedSlices = 0;
+        selectedSlices = new Set();
       }, 2000);
     }
   }
 
   onMount(() => {
-    const savedState = localStorage.getItem("fraction-pizza-state");
-    if (savedState) {
-      const gameState = JSON.parse(savedState);
-      currentLevel = gameState.currentLevel;
-      score = gameState.score;
-      streak = gameState.streak;
-      numerator1 = gameState.numerator1;
-      numerator2 = gameState.numerator2;
-      operator = gameState.operator;
-      denominator = gameState.denominator;
-      selectedSlices = gameState.selectedSlices;
+    const stored = localStorage.getItem("fraction-pizza-state");
+    if (stored) {
+      const saved = JSON.parse(stored);
+      currentLevel = saved.currentLevel;
+      score = saved.score;
+      streak = saved.streak;
+      numerator1 = saved.numerator1;
+      numerator2 = saved.numerator2;
+      operator = saved.operator;
+      denominator = saved.denominator;
+      // Restore Set from Array
+      if (Array.isArray(saved.selectedSlices)) {
+        selectedSlices = new Set(saved.selectedSlices);
+      }
     } else {
       generateLevel();
     }
@@ -118,7 +130,9 @@
     <h2>How to Play</h2>
     <ul>
       <li>
-        Target: <strong>{numerator1}/{denominator} + {numerator2}/{denominator}</strong>
+        Target: <strong
+          >{numerator1}/{denominator} + {numerator2}/{denominator}</strong
+        >
       </li>
       <li>Click slices to select pieces.</li>
       <li>Click <strong>Check Order</strong>.</li>
@@ -148,9 +162,7 @@
 
     <div class="game-area">
       <div class="instruction">
-        <p>
-          Select the correct number of slices to solve the equation.
-        </p>
+        <p>Select the correct number of slices to solve the equation.</p>
       </div>
 
       <div class="pizza-equation">
@@ -160,7 +172,7 @@
         <span class="operator">=</span>
         <Pizza
           {denominator}
-          numerator={selectedSlices}
+          selectedIndices={Array.from(selectedSlices)}
           interactive={true}
           onclick={(i: number) => toggleSlice(i)}
         />
@@ -235,11 +247,6 @@
     font-size: 1.5rem;
     margin-bottom: 1.5rem;
   }
-  .highlight {
-    color: var(--accent);
-    font-weight: bold;
-    font-size: 2rem;
-  }
   .pizza-equation {
     display: flex;
     align-items: center;
@@ -249,24 +256,6 @@
   .operator {
     font-size: 2rem;
     font-weight: bold;
-  }
-  svg {
-    width: 100%;
-    height: 100%;
-    overflow: visible;
-  }
-  .slice {
-    cursor: pointer;
-    transition: fill 0.2s ease;
-    transform-origin: center;
-  }
-  .slice:hover {
-    filter: brightness(1.05);
-    transform: scale(1.02);
-    z-index: 10;
-  }
-  .slice.selected {
-    fill: #ef4444;
   }
   .check-btn {
     background: var(--accent);
