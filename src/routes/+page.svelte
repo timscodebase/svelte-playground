@@ -16,6 +16,13 @@
       color: "from-yellow-500 to-orange-500",
       icon: "⚡",
     },
+    {
+      title: "Pizza Slicer",
+      desc: "Visual fractions game. Slice and serve the correct portion.",
+      href: "/fraction-pizza",
+      color: "from-red-500 to-yellow-500",
+      icon: "🍕",
+    },
   ];
 </script>
 
@@ -123,6 +130,9 @@
   }
   .from-emerald-500 {
     --tw-gradient-stops: #10b981, #2dd4bf;
+  }
+  .from-red-500 {
+    --tw-gradient-stops: #ef4444, #eab308;
   }
 
   .content {

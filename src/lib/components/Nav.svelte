@@ -1,6 +1,8 @@
 <nav>
-  <a href="/mulipication-tables">Multiplication Table</a>
+  <a href="/">Home</a>
   <a href="/flash-cards">Arithmetic Sprint</a>
+  <a href="/fraction-pizza">Fraction Pizza</a>
+  <a href="/mulipication-tables">Multiplication Table</a>
 </nav>
 
 <style>
