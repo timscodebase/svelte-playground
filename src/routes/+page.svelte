@@ -38,6 +38,27 @@
       color: "from-red-500 to-yellow-500",
       icon: "🍕",
     },
+    {
+      title: "Angle Archer",
+      desc: "Estimate angles to hit the target. Learn geometry intuitively.",
+      href: "/angle-archer",
+      color: "from-emerald-500 to-teal-500",
+      icon: "🏹",
+    },
+    {
+      title: "Number Snake",
+      desc: "Eat numbers to solve the math problem. Don't crash!",
+      href: "/number-snake",
+      color: "from-green-500 to-lime-500",
+      icon: "🐍",
+    },
+    {
+      title: "Factortris",
+      desc: "Clear falling blocks by selecting their factor pairs.",
+      href: "/factortris",
+      color: "from-violet-500 to-fuchsia-500",
+      icon: "🧱",
+    },
   ];
 
   onMount(() => {
@@ -97,7 +118,7 @@
   header {
     text-align: center;
     margin-bottom: 4rem;
-    opacity: 1; /* GSAP handles opacity */
+    opacity: 1;
   }
   h1 {
     font-size: 3rem;
@@ -144,6 +165,7 @@
     width: 100%;
     background-image: linear-gradient(to right, var(--tw-gradient-stops));
   }
+  /* Tailwind-like utility classes for gradients */
   .from-blue-500 {
     --tw-gradient-stops: #3b82f6, #22d3ee;
   }
@@ -162,6 +184,13 @@
   .from-pink-500 {
     --tw-gradient-stops: #ec4899, #f43f5e;
   }
+  .from-green-500 {
+    --tw-gradient-stops: #22c55e, #84cc16;
+  }
+  .from-violet-500 {
+    --tw-gradient-stops: #8b5cf6, #d946ef;
+  }
+
   .content {
     padding: 2rem;
     display: flex;

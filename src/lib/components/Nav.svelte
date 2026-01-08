@@ -10,6 +10,9 @@
     <a href="/flash-cards">Sprint</a>
     <a href="/fraction-pizza">Pizza</a>
     <a href="/equation-builder">Builder</a>
+    <a href="/angle-archer">Archer</a>
+    <a href="/number-snake">Snake</a>
+    <a href="/factortris">Factortris</a>
   </div>
   <div class="actions">
     <ThemeToggle />
