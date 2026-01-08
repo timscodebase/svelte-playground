@@ -5,16 +5,30 @@
     {
       title: "Times Tables",
       desc: "Master your multiplication with this interactive grid challenge.",
-      href: "/mulipication-tables", // Note: Keeping your existing folder name
+      href: "/mulipication-tables",
       color: "from-blue-500 to-cyan-400",
-      icon: "X",
+      icon: "✖️",
+    },
+    {
+      title: "Grid Chase",
+      desc: "Reverse multiplication! Find all grid cells that match the target.",
+      href: "/grid-chase",
+      color: "from-indigo-500 to-purple-500",
+      icon: "🔍",
     },
     {
       title: "Arithmetic Sprint",
-      desc: "Race against the clock to solve addition, subtraction, and division problems.",
+      desc: "Race against the clock to solve math problems.",
       href: "/flash-cards",
       color: "from-yellow-500 to-orange-500",
       icon: "⚡",
+    },
+    {
+      title: "Equation Builder",
+      desc: "Drag and drop puzzles. Balance the equation.",
+      href: "/equation-builder",
+      color: "from-pink-500 to-rose-500",
+      icon: "🧩",
     },
     {
       title: "Pizza Slicer",
@@ -70,17 +84,14 @@
     text-align: center;
     margin-bottom: 4rem;
   }
-
   h1 {
     font-size: 3rem;
     margin-bottom: 0.5rem;
     letter-spacing: -1px;
   }
-
   .highlight {
     color: #facc15;
   }
-
   .subtitle {
     color: var(--text-secondary);
     font-size: 1.1rem;
@@ -88,10 +99,10 @@
 
   .grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
     gap: 2rem;
     width: 100%;
-    max-width: 1000px;
+    max-width: 1200px;
   }
 
   .card {
@@ -106,6 +117,8 @@
       transform 0.2s,
       box-shadow 0.2s;
     height: 100%;
+    display: flex;
+    flex-direction: column;
   }
 
   .card:hover {
@@ -114,14 +127,13 @@
     border-color: #52525b;
   }
 
-  /* Gradient Top Bar */
   .card-bg {
     height: 6px;
     width: 100%;
     background-image: linear-gradient(to right, var(--tw-gradient-stops));
   }
 
-  /* Utility classes for gradients (mimicking Tailwind classes for pure CSS) */
+  /* Tailwind-ish Gradient Stops */
   .from-blue-500 {
     --tw-gradient-stops: #3b82f6, #22d3ee;
   }
@@ -134,25 +146,29 @@
   .from-red-500 {
     --tw-gradient-stops: #ef4444, #eab308;
   }
+  .from-indigo-500 {
+    --tw-gradient-stops: #6366f1, #a855f7;
+  }
+  .from-pink-500 {
+    --tw-gradient-stops: #ec4899, #f43f5e;
+  }
 
   .content {
     padding: 2rem;
     display: flex;
     flex-direction: column;
-    height: calc(100% - 6px);
+    flex-grow: 1;
   }
 
   .icon {
     font-size: 2.5rem;
     margin-bottom: 1rem;
   }
-
   h2 {
     font-size: 1.5rem;
     margin: 0 0 0.5rem 0;
     font-weight: bold;
   }
-
   p {
     color: var(--text-secondary);
     line-height: 1.6;
@@ -166,5 +182,6 @@
     text-transform: uppercase;
     font-size: 0.9rem;
     letter-spacing: 1px;
+    margin-top: auto;
   }
 </style>
