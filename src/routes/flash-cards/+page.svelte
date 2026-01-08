@@ -4,33 +4,24 @@
   import confetti from "canvas-confetti";
   import { playSound } from "$lib";
 
-  // --- Configuration ---
   const GAME_DURATION = 60; // seconds
-
   type Operator = "+" | "-" | "÷";
-
   interface Question {
     text: string;
     answer: number;
   }
 
-  // --- State ---
   let gameState = $state<"start" | "playing" | "finished">("start");
   let score = $state(0);
   let streak = $state(0);
   let timeLeft = $state(GAME_DURATION);
   let highScore = $state<number | null>(null);
-
-  // Current Question State
   let question = $state<Question>({ text: "", answer: 0 });
   let userInput = $state<number | null>(null);
   let inputElement: HTMLInputElement;
-
-  // Visual Feedback State
   let feedback = $state<"none" | "correct" | "wrong">("none");
   let timerInterval: any = null;
 
-  // --- Lifecycle ---
   onMount(() => {
     const stored = localStorage.getItem("arithmetic-sprint-highscore");
     if (stored) highScore = parseInt(stored);
@@ -40,32 +31,25 @@
     clearInterval(timerInterval);
   });
 
-  // --- Game Logic ---
-
   function generateQuestion() {
     const ops: Operator[] = ["+", "-", "÷"];
-    // Increase probability of simple + / - for speed
     const op = ops[Math.floor(Math.random() * ops.length)];
-
     let a = 0,
       b = 0;
-
     switch (op) {
       case "+":
-        a = Math.floor(Math.random() * 20) + 2; // 2 to 21
+        a = Math.floor(Math.random() * 20) + 2;
         b = Math.floor(Math.random() * 20) + 2;
         question = { text: `${a} + ${b}`, answer: a + b };
         break;
       case "-":
         b = Math.floor(Math.random() * 15) + 2;
-        // Ensure result is positive
         a = Math.floor(Math.random() * 20) + b;
         question = { text: `${a} - ${b}`, answer: a - b };
         break;
       case "÷":
-        // Work backwards: result * divisor = dividend
-        const result = Math.floor(Math.random() * 11) + 2; // 2 to 12
-        b = Math.floor(Math.random() * 10) + 2; // 2 to 11
+        const result = Math.floor(Math.random() * 11) + 2;
+        b = Math.floor(Math.random() * 10) + 2;
         a = result * b;
         question = { text: `${a} ÷ ${b}`, answer: result };
         break;
@@ -79,15 +63,10 @@
     gameState = "playing";
     userInput = null;
     generateQuestion();
-
-    // Focus input on next tick
     setTimeout(() => inputElement?.focus(), 0);
-
     timerInterval = setInterval(() => {
       timeLeft -= 1;
-      if (timeLeft <= 0) {
-        endGame();
-      }
+      if (timeLeft <= 0) endGame();
     }, 1000);
   }
 
@@ -98,45 +77,27 @@
       highScore = score;
       localStorage.setItem("arithmetic-sprint-highscore", score.toString());
       playSound("win");
-      confetti({
-        particleCount: 200,
-        spread: 100,
-        origin: { y: 0.6 },
-      });
+      confetti({ particleCount: 200, spread: 100, origin: { y: 0.6 } });
     }
   }
 
   function checkAnswer() {
     if (userInput === null) return;
-
     if (userInput === question.answer) {
-      // Correct
       score += 1;
       streak += 1;
       feedback = "correct";
       playSound("correct");
-
-      // Streak bonuses
-      if (streak > 0 && streak % 10 === 0) {
-        confetti({
-          particleCount: 50,
-          spread: 60,
-          origin: { y: 0.7 },
-          colors: ["#facc15", "#2563eb"], // Gold & Blue
-        });
-      }
-
+      if (streak > 0 && streak % 10 === 0)
+        confetti({ particleCount: 50, spread: 60, origin: { y: 0.7 } });
       userInput = null;
       generateQuestion();
     } else {
-      // Wrong
       streak = 0;
       feedback = "wrong";
       playSound("wrong");
       userInput = null;
     }
-
-    // Reset feedback animation class
     setTimeout(() => {
       feedback = "none";
     }, 500);
@@ -144,9 +105,7 @@
 
   function handleKeydown(e: KeyboardEvent) {
     if (gameState !== "playing") return;
-    if (e.key === "Enter") {
-      checkAnswer();
-    }
+    if (e.key === "Enter") checkAnswer();
   }
 </script>
 
@@ -155,27 +114,29 @@
     <h2>How to Play</h2>
     <ul>
       <li>Race against the clock!</li>
-      <li>You have <strong>{GAME_DURATION} seconds</strong>.</li>
-      <li>Type the answer and press <strong>Enter</strong>.</li>
-      <li>Build up your streak for bonuses.</li>
+      <li>You have <strong>{GAME_DURATION}s</strong>.</li>
+      <li>Type answer, press <strong>Enter</strong>.</li>
     </ul>
   </aside>
 
-  <div class="container">
+  <div class="game-container">
     <h1>Arithmetic Sprint</h1>
 
     <div class="stats-bar">
       <div class="stat">
-        <span class="label">Time</span>
-        <span class="value" class:urgent={timeLeft <= 10}>{timeLeft}s</span>
+        <span class="label">Time</span><span
+          class="value"
+          class:urgent={timeLeft <= 10}>{timeLeft}s</span
+        >
       </div>
       <div class="stat">
-        <span class="label">Score</span>
-        <span class="value">{score}</span>
+        <span class="label">Score</span><span class="value">{score}</span>
       </div>
       <div class="stat">
-        <span class="label">Streak</span>
-        <span class="value streak" class:fire={streak >= 5}>{streak} 🔥</span>
+        <span class="label">Streak</span><span
+          class="value streak"
+          class:fire={streak >= 5}>{streak} 🔥</span
+        >
       </div>
     </div>
 
@@ -188,9 +149,7 @@
         </div>
       {:else if gameState === "playing"}
         <div class="card question-card" class:shake={feedback === "wrong"}>
-          <div class="expression">
-            {question.text}
-          </div>
+          <div class="expression">{question.text}</div>
           <div class="equals">=</div>
           <input
             bind:this={inputElement}
@@ -206,15 +165,11 @@
       {:else if gameState === "finished"}
         <div class="card result" in:scale>
           <h2>Time's Up!</h2>
-          <div class="final-score">
-            {score}
-          </div>
+          <div class="final-score">{score}</div>
           <p class="label">Final Score</p>
-
-          {#if highScore !== null}
-            <p class="highscore">High Score: {highScore}</p>
-          {/if}
-
+          {#if highScore !== null}<p class="highscore">
+              High Score: {highScore}
+            </p>{/if}
           <button class="primary-btn" onclick={startGame}>Play Again</button>
         </div>
       {/if}
@@ -223,111 +178,23 @@
 </div>
 
 <style>
-  :root {
-    --bg-color: #18181b;
-    --card-bg: #27272a;
-    --text-main: #f4f4f5;
-    --accent: #facc15;
-    --correct: #16a34a;
-    --wrong: #dc2626;
-  }
-
-  .page-layout {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 2rem;
-    padding: 2rem;
-    min-height: 100vh;
-    background-color: var(--bg-color);
-    color: var(--text-main);
-    font-family: "Roboto Mono", monospace;
-  }
-
-  @media (min-width: 1024px) {
-    .page-layout {
-      grid-template-columns: 250px 1fr;
-      align-items: start;
-    }
-  }
-
-  .sidebar {
-    background: #27272a;
-    padding: 1.5rem;
-    border-radius: 8px;
-    border: 1px solid #3f3f46;
-  }
-  .sidebar h2 {
-    color: var(--accent);
-    margin-top: 0;
-    font-size: 1.2rem;
-    text-transform: uppercase;
-  }
-  .sidebar ul {
-    padding-left: 1.2rem;
-    line-height: 1.6;
-    color: #a1a1aa;
-  }
-  .sidebar li {
-    margin-bottom: 0.5rem;
-  }
-
-  .container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    width: 100%;
-  }
-
   h1 {
-    text-transform: uppercase;
     color: var(--accent);
+    text-transform: uppercase;
     letter-spacing: 2px;
     margin-bottom: 2rem;
   }
-
-  /* Stats Bar */
-  .stats-bar {
-    display: flex;
-    gap: 2rem;
-    margin-bottom: 3rem;
-  }
-
-  .stat {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    background: var(--card-bg);
-    padding: 0.75rem 1.5rem;
-    border-radius: 8px;
-    border: 1px solid #3f3f46;
-    min-width: 90px;
-  }
-
-  .stat .label {
-    font-size: 0.8rem;
-    color: #a1a1aa;
-    text-transform: uppercase;
-  }
-
-  .stat .value {
-    font-size: 1.5rem;
-    font-weight: bold;
-  }
-
   .value.urgent {
-    color: var(--wrong);
+    color: var(--error);
     animation: pulse 1s infinite;
   }
-
   .value.streak {
-    color: #a1a1aa;
+    color: var(--text-muted);
   }
   .value.streak.fire {
     color: #f97316;
     text-shadow: 0 0 10px rgba(249, 115, 22, 0.4);
   }
-
-  /* Game Area */
   .game-area {
     width: 100%;
     max-width: 500px;
@@ -337,56 +204,50 @@
     align-items: center;
     position: relative;
   }
-
   .card {
-    background: var(--card-bg);
-    border: 1px solid #3f3f46;
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
     border-radius: 12px;
     padding: 2rem;
     width: 100%;
     display: flex;
     flex-direction: column;
     align-items: center;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    box-shadow: var(--shadow);
     gap: 1.5rem;
   }
-
-  /* Intro / Result Text */
   h2 {
     font-size: 2rem;
     margin: 0;
+    color: var(--text-main);
   }
   p {
-    color: #a1a1aa;
+    color: var(--text-muted);
     text-align: center;
   }
-
   .final-score {
     font-size: 4rem;
     font-weight: bold;
     color: var(--accent);
     line-height: 1;
   }
-
-  /* Question UI */
   .expression {
     font-size: 3rem;
     font-weight: bold;
+    color: var(--text-main);
   }
-
   .equals {
     font-size: 2rem;
-    color: #52525b;
+    color: var(--text-muted);
     margin-top: -1rem;
     margin-bottom: -0.5rem;
   }
-
   input {
     background: transparent;
-    border: 2px solid #52525b;
+    border: 2px solid var(--border);
     border-radius: 8px;
     font-size: 2.5rem;
-    color: white;
+    color: var(--text-main);
     width: 150px;
     text-align: center;
     padding: 0.5rem;
@@ -394,30 +255,24 @@
     transition: all 0.2s;
     font-family: inherit;
   }
-
   input:focus {
     border-color: var(--accent);
-    box-shadow: 0 0 15px rgba(250, 204, 21, 0.2);
+    box-shadow: 0 0 15px rgba(234, 179, 8, 0.2);
   }
-
-  /* Feedback Animations */
   .correct-flash {
-    border-color: var(--correct) !important;
-    background-color: rgba(22, 163, 74, 0.1);
+    border-color: var(--success) !important;
+    background-color: rgba(34, 197, 94, 0.1);
   }
   .wrong-flash {
-    border-color: var(--wrong) !important;
-    color: var(--wrong);
+    border-color: var(--error) !important;
+    color: var(--error);
   }
-
   .shake {
     animation: shake 0.4s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
   }
-
-  /* Buttons */
   .primary-btn {
     background-color: var(--accent);
-    color: black;
+    color: var(--accent-fg);
     border: none;
     font-size: 1.2rem;
     font-weight: bold;
@@ -433,11 +288,9 @@
   .primary-btn:active {
     transform: scale(0.95);
   }
-
   .submit-btn {
     display: none;
   }
-
   @keyframes pulse {
     0%,
     100% {
@@ -447,7 +300,6 @@
       opacity: 0.5;
     }
   }
-
   @keyframes shake {
     10%,
     90% {

@@ -4,24 +4,18 @@
   import confetti from "canvas-confetti";
   import { playSound } from "$lib";
 
-  // --- Configuration ---
   const LEVELS = { Easy: 5, Medium: 8, Hard: 12 } as const;
   type Level = keyof typeof LEVELS;
 
-  // --- State ---
   let currentLevel = $state<Level>("Medium");
   let size = $derived(LEVELS[currentLevel]);
   let targetNumber = $state(0);
   let foundCount = $state(0);
   let score = $state(0);
   let streak = $state(0);
-
-  // Track which cells are currently revealed/found
   let foundCells = $state(new Set<string>());
-  // Derived total occurrences of the target in the current grid
   let totalOccurrences = $state(0);
 
-  // Grid for rendering
   let grid = $derived.by(() => {
     const g = [];
     for (let r = 1; r <= size; r++) {
@@ -37,12 +31,9 @@
   function generateRound() {
     foundCells = new Set();
     foundCount = 0;
-    // Pick a random number that actually exists in the grid (product of two random numbers)
     const r = Math.floor(Math.random() * size) + 1;
     const c = Math.floor(Math.random() * size) + 1;
     targetNumber = r * c;
-
-    // Calculate how many times this number appears
     let count = 0;
     for (let i = 1; i <= size; i++) {
       for (let j = 1; j <= size; j++) {
@@ -55,7 +46,6 @@
   function handleCellClick(r: number, c: number, val: number) {
     const key = `${r},${c}`;
     if (foundCells.has(key)) return;
-
     if (val === targetNumber) {
       playSound("pop");
       foundCells.add(key);
@@ -81,7 +71,6 @@
     streak = 0;
     generateRound();
   }
-
   onMount(() => {
     generateRound();
   });
@@ -91,27 +80,21 @@
   <aside class="sidebar">
     <h2>How to Play</h2>
     <ul>
-      <li>Look at the <strong>Find</strong> number in the target box.</li>
-      <li>Click every cell in the grid that equals that number.</li>
-      <li>
-        For example, if the target is <strong>12</strong>, find cells like
-        <strong>3x4</strong>, <strong>2x6</strong>, etc.
-      </li>
-      <li>Find them all to advance!</li>
+      <li>Find: <strong>{targetNumber}</strong>.</li>
+      <li>Click cells that match (e.g. 3x4=12).</li>
+      <li>Find all {totalOccurrences} instances.</li>
     </ul>
   </aside>
 
-  <div class="container">
+  <div class="game-container">
     <div class="header">
       <h1>Grid Chase</h1>
       <div class="controls">
         {#each Object.keys(LEVELS) as level}
           <button
             class:active={currentLevel === level}
-            onclick={() => setLevel(level as Level)}
+            onclick={() => setLevel(level as Level)}>{level}</button
           >
-            {level}
-          </button>
         {/each}
       </div>
     </div>
@@ -136,7 +119,6 @@
           {@const r = rIndex + 1}
           {@const c = cIndex + 1}
           {@const isFound = foundCells.has(`${r},${c}`)}
-
           <button
             class="cell"
             class:found={isFound}
@@ -154,59 +136,6 @@
 </div>
 
 <style>
-  :root {
-    --bg: #18181b;
-    --cell-bg: #27272a;
-    --cell-found: #10b981;
-    --text: #f4f4f5;
-  }
-
-  .page-layout {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 2rem;
-    padding: 2rem;
-    min-height: 100vh;
-    background-color: var(--bg);
-    color: var(--text);
-    font-family: "Roboto Mono", monospace;
-  }
-
-  @media (min-width: 1024px) {
-    .page-layout {
-      grid-template-columns: 250px 1fr;
-      align-items: start;
-    }
-  }
-
-  .sidebar {
-    background: #27272a;
-    padding: 1.5rem;
-    border-radius: 8px;
-    border: 1px solid #3f3f46;
-  }
-  .sidebar h2 {
-    color: #facc15;
-    margin-top: 0;
-    font-size: 1.2rem;
-    text-transform: uppercase;
-  }
-  .sidebar ul {
-    padding-left: 1.2rem;
-    line-height: 1.6;
-    color: #a1a1aa;
-  }
-  .sidebar li {
-    margin-bottom: 0.5rem;
-  }
-
-  .container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    width: 100%;
-  }
-
   .header {
     display: flex;
     flex-direction: column;
@@ -214,17 +143,15 @@
     gap: 1rem;
     margin-bottom: 2rem;
   }
-
   h1 {
-    color: #facc15;
+    color: var(--accent);
     text-transform: uppercase;
     letter-spacing: 2px;
   }
-
   .controls button {
     background: transparent;
-    border: 1px solid #3f3f46;
-    color: #a1a1aa;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
     padding: 6px 12px;
     margin: 0 4px;
     cursor: pointer;
@@ -232,11 +159,10 @@
     font-family: inherit;
   }
   .controls button.active {
-    background: #facc15;
-    color: black;
-    border-color: #facc15;
+    background: var(--accent);
+    color: var(--accent-fg);
+    border-color: var(--accent);
   }
-
   .hud {
     display: flex;
     justify-content: space-between;
@@ -245,60 +171,60 @@
     max-width: 600px;
     margin-bottom: 1.5rem;
   }
-
   .target-box {
-    background: #3f3f46;
+    background: var(--bg-panel);
     padding: 1rem 2rem;
     border-radius: 12px;
     display: flex;
     flex-direction: column;
     align-items: center;
-    border: 2px solid #facc15;
+    border: 2px solid var(--accent);
     min-width: 150px;
   }
-
   .target-box .label {
     font-size: 0.8rem;
     text-transform: uppercase;
-    color: #a1a1aa;
+    color: var(--text-muted);
   }
   .target-box .number {
     font-size: 3rem;
     font-weight: bold;
-    color: white;
+    color: var(--text-main);
     line-height: 1;
   }
   .target-box .progress {
     font-size: 0.9rem;
-    color: #facc15;
+    color: var(--accent);
     margin-top: 0.25rem;
   }
-
   .stats {
     font-size: 1.1rem;
     text-align: right;
   }
   .stat {
     margin-bottom: 0.25rem;
+    color: var(--text-main);
   }
-
   .grid {
     display: grid;
     grid-template-columns: repeat(var(--size), 1fr);
     gap: 4px;
-    background: #000;
-    padding: 8px;
+    background: var(--text-main);
+    padding: 4px;
     border-radius: 8px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    box-shadow: var(--shadow);
   }
-
+  /* Light mode grid gap fix */
+  :global(:root:not(.dark)) .grid {
+    background: #ccc;
+  }
   .cell {
     width: 40px;
     height: 40px;
-    background: var(--cell-bg);
+    background: var(--bg-panel);
     border: none;
     border-radius: 4px;
-    color: white;
+    color: var(--text-main);
     font-weight: bold;
     cursor: pointer;
     transition: all 0.1s;
@@ -307,19 +233,16 @@
     justify-content: center;
     font-size: 1rem;
   }
-
   .cell:hover:not(:disabled) {
-    background: #52525b;
+    background: var(--bg-panel-hover);
     transform: scale(1.1);
     z-index: 2;
   }
-
   .cell.found {
-    background: var(--cell-found);
-    color: black;
+    background: var(--success);
+    color: white;
     animation: pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   }
-
   @keyframes pop {
     0% {
       transform: scale(0.5);

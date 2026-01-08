@@ -62,24 +62,16 @@
 </div>
 
 <style>
-  :root {
-    --bg-color: #18181b;
-    --card-surface: #27272a;
-    --text-primary: #f4f4f5;
-    --text-secondary: #a1a1aa;
-  }
-
   .dashboard {
     min-height: 100vh;
     padding: 4rem 2rem;
-    background-color: var(--bg-color);
-    color: var(--text-primary);
+    background-color: var(--bg-app);
+    color: var(--text-main);
     font-family: "Roboto Mono", monospace;
     display: flex;
     flex-direction: column;
     align-items: center;
   }
-
   header {
     text-align: center;
     margin-bottom: 4rem;
@@ -90,13 +82,12 @@
     letter-spacing: -1px;
   }
   .highlight {
-    color: #facc15;
+    color: var(--accent);
   }
   .subtitle {
-    color: var(--text-secondary);
+    color: var(--text-muted);
     font-size: 1.1rem;
   }
-
   .grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -104,15 +95,14 @@
     width: 100%;
     max-width: 1200px;
   }
-
   .card {
     position: relative;
-    background: var(--card-surface);
+    background: var(--bg-panel);
     border-radius: 16px;
     overflow: hidden;
     text-decoration: none;
     color: inherit;
-    border: 1px solid #3f3f46;
+    border: 1px solid var(--border);
     transition:
       transform 0.2s,
       box-shadow 0.2s;
@@ -120,20 +110,16 @@
     display: flex;
     flex-direction: column;
   }
-
   .card:hover {
     transform: translateY(-5px);
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
-    border-color: #52525b;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+    border-color: var(--text-muted);
   }
-
   .card-bg {
     height: 6px;
     width: 100%;
     background-image: linear-gradient(to right, var(--tw-gradient-stops));
   }
-
-  /* Tailwind-ish Gradient Stops */
   .from-blue-500 {
     --tw-gradient-stops: #3b82f6, #22d3ee;
   }
@@ -152,14 +138,12 @@
   .from-pink-500 {
     --tw-gradient-stops: #ec4899, #f43f5e;
   }
-
   .content {
     padding: 2rem;
     display: flex;
     flex-direction: column;
     flex-grow: 1;
   }
-
   .icon {
     font-size: 2.5rem;
     margin-bottom: 1rem;
@@ -170,15 +154,14 @@
     font-weight: bold;
   }
   p {
-    color: var(--text-secondary);
+    color: var(--text-muted);
     line-height: 1.6;
     margin-bottom: 2rem;
     flex-grow: 1;
   }
-
   .link-text {
     font-weight: bold;
-    color: #facc15;
+    color: var(--accent);
     text-transform: uppercase;
     font-size: 0.9rem;
     letter-spacing: 1px;

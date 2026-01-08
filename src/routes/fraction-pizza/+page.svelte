@@ -1,69 +1,45 @@
 <script lang="ts">
-  import { onMount, onDestroy } from "svelte";
-  import { fly, scale, fade } from "svelte/transition";
+  import { onMount } from "svelte";
+  import { fly } from "svelte/transition";
   import confetti from "canvas-confetti";
   import { playSound } from "$lib";
 
-  // --- Configuration ---
-  const LEVELS = {
-    Easy: [2, 3, 4],
-    Medium: [5, 6, 8],
-    Hard: [7, 9, 10, 12],
-  };
-
+  const LEVELS = { Easy: [2, 3, 4], Medium: [5, 6, 8], Hard: [7, 9, 10, 12] };
   type Level = keyof typeof LEVELS;
 
-  // --- State ---
   let currentLevel = $state<Level>("Easy");
   let score = $state(0);
   let streak = $state(0);
   let numerator = $state(1);
-  let denominator = $state(2); // Total slices
-
-  // Array of booleans representing if a slice is selected
+  let denominator = $state(2);
   let selectedSlices = $state<boolean[]>([]);
   let gameState = $state<"playing" | "correct" | "wrong">("playing");
   let feedbackMessage = $state("");
 
-  // --- SVG Math ---
   const VIEWBOX_SIZE = 200;
   const CENTER = VIEWBOX_SIZE / 2;
-  const RADIUS = 90; // Leave some padding
+  const RADIUS = 90;
 
-  // Derived state for the SVG paths
   let slices = $derived.by(() => {
     const sliceArray = [];
     const anglePerSlice = (2 * Math.PI) / denominator;
-
     for (let i = 0; i < denominator; i++) {
       const startAngle = i * anglePerSlice - Math.PI / 2;
       const endAngle = (i + 1) * anglePerSlice - Math.PI / 2;
-
       const x1 = CENTER + RADIUS * Math.cos(startAngle);
       const y1 = CENTER + RADIUS * Math.sin(startAngle);
       const x2 = CENTER + RADIUS * Math.cos(endAngle);
       const y2 = CENTER + RADIUS * Math.sin(endAngle);
-
       const largeArcFlag = anglePerSlice > Math.PI ? 1 : 0;
-
-      const pathData = `
-        M ${CENTER} ${CENTER}
-        L ${x1} ${y1}
-        A ${RADIUS} ${RADIUS} 0 ${largeArcFlag} 1 ${x2} ${y2}
-        Z
-      `;
-
+      const pathData = `M ${CENTER} ${CENTER} L ${x1} ${y1} A ${RADIUS} ${RADIUS} 0 ${largeArcFlag} 1 ${x2} ${y2} Z`;
       sliceArray.push({ id: i, d: pathData });
     }
     return sliceArray;
   });
 
-  // --- Game Logic ---
-
   function generateLevel() {
     gameState = "playing";
     feedbackMessage = "";
-
     const possibleDenominators = LEVELS[currentLevel];
     denominator =
       possibleDenominators[
@@ -81,32 +57,26 @@
 
   function checkAnswer() {
     const selectedCount = selectedSlices.filter(Boolean).length;
-
     if (selectedCount === numerator) {
-      // Win
       gameState = "correct";
       score += 10;
       streak += 1;
       feedbackMessage = "Delicious!";
       playSound("correct");
-
       confetti({
         particleCount: 100,
         spread: 70,
         origin: { y: 0.6 },
-        colors: ["#ef4444", "#eab308", "#ffffff"], // Pizza colors
+        colors: ["#ef4444", "#eab308", "#ffffff"],
       });
-
       setTimeout(() => {
         generateLevel();
       }, 1500);
     } else {
-      // Lose
       gameState = "wrong";
       streak = 0;
       feedbackMessage = `Oops! You selected ${selectedCount}, but we needed ${numerator}.`;
       playSound("wrong");
-
       setTimeout(() => {
         gameState = "playing";
         feedbackMessage = "";
@@ -115,7 +85,6 @@
     }
   }
 
-  // --- Lifecycle ---
   onMount(() => {
     generateLevel();
   });
@@ -125,18 +94,13 @@
   <aside class="sidebar">
     <h2>How to Play</h2>
     <ul>
-      <li>
-        Look at the target fraction (e.g., <strong
-          >{numerator}/{denominator}</strong
-        >).
-      </li>
-      <li>Click the pizza slices to select that many pieces.</li>
-      <li>Click <strong>Check Order</strong> when you're done.</li>
-      <li>Change the difficulty to serve bigger pizzas!</li>
+      <li>Target: <strong>{numerator}/{denominator}</strong>.</li>
+      <li>Click slices to select pieces.</li>
+      <li>Click <strong>Check Order</strong>.</li>
     </ul>
   </aside>
 
-  <div class="container">
+  <div class="game-container">
     <div class="header">
       <h1>Pizza Slicer 🍕</h1>
       <div class="controls">
@@ -146,10 +110,8 @@
             onclick={() => {
               currentLevel = level as Level;
               generateLevel();
-            }}
+            }}>{level}</button
           >
-            {level}
-          </button>
         {/each}
       </div>
     </div>
@@ -173,7 +135,6 @@
           class:shake={gameState === "wrong"}
         >
           <circle cx={CENTER} cy={CENTER} r={RADIUS + 4} fill="#eab308" />
-
           {#each slices as slice, i}
             <path
               d={slice.d}
@@ -187,7 +148,6 @@
               stroke="#b45309"
               stroke-width="2"
             />
-
             {#if selectedSlices[i]}
               {@const angle =
                 (i * (2 * Math.PI)) / denominator -
@@ -206,7 +166,6 @@
               />
             {/if}
           {/each}
-
           <circle cx={CENTER} cy={CENTER} r="0" fill="transparent" />
         </svg>
       </div>
@@ -225,61 +184,6 @@
 </div>
 
 <style>
-  :root {
-    --bg: #18181b;
-    --text: #f4f4f5;
-    --accent: #eab308; /* Pizza Gold */
-    --slice-empty: #fef08a; /* Light yellow dough */
-    --slice-selected: #ef4444; /* Tomato Red */
-    --crust: #b45309;
-  }
-
-  .page-layout {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 2rem;
-    padding: 2rem;
-    min-height: 100vh;
-    background-color: var(--bg);
-    color: var(--text);
-    font-family: "Roboto Mono", monospace;
-  }
-
-  @media (min-width: 1024px) {
-    .page-layout {
-      grid-template-columns: 250px 1fr;
-      align-items: start;
-    }
-  }
-
-  .sidebar {
-    background: #27272a;
-    padding: 1.5rem;
-    border-radius: 8px;
-    border: 1px solid #3f3f46;
-  }
-  .sidebar h2 {
-    color: var(--accent);
-    margin-top: 0;
-    font-size: 1.2rem;
-    text-transform: uppercase;
-  }
-  .sidebar ul {
-    padding-left: 1.2rem;
-    line-height: 1.6;
-    color: #a1a1aa;
-  }
-  .sidebar li {
-    margin-bottom: 0.5rem;
-  }
-
-  .container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    width: 100%;
-  }
-
   .header {
     display: flex;
     flex-direction: column;
@@ -287,25 +191,23 @@
     gap: 1rem;
     margin-bottom: 2rem;
   }
-
   h1 {
     color: var(--accent);
     text-transform: uppercase;
     letter-spacing: 2px;
   }
-
   .controls {
     display: flex;
     gap: 0.5rem;
-    background: #27272a;
+    background: var(--bg-panel);
     padding: 4px;
     border-radius: 8px;
+    border: 1px solid var(--border);
   }
-
   .controls button {
     background: transparent;
     border: none;
-    color: #a1a1aa;
+    color: var(--text-muted);
     padding: 6px 12px;
     cursor: pointer;
     font-family: inherit;
@@ -313,60 +215,45 @@
     border-radius: 4px;
     transition: all 0.2s;
   }
-
   .controls button.active {
     background: var(--accent);
-    color: #000;
+    color: var(--accent-fg);
   }
-
-  .stats-bar {
-    display: flex;
-    gap: 2rem;
-    margin-bottom: 2rem;
-    font-size: 1.2rem;
-  }
-
-  .stat .val {
+  .val {
     font-weight: bold;
     color: var(--accent);
   }
-
   .game-area {
-    background: #27272a;
+    background: var(--bg-panel);
     padding: 2rem;
     border-radius: 16px;
-    border: 1px solid #3f3f46;
+    border: 1px solid var(--border);
     display: flex;
     flex-direction: column;
     align-items: center;
     width: 100%;
     max-width: 500px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    box-shadow: var(--shadow);
   }
-
   .instruction {
     font-size: 1.5rem;
     margin-bottom: 1.5rem;
   }
-
   .highlight {
     color: var(--accent);
     font-weight: bold;
     font-size: 2rem;
   }
-
   .pizza-wrapper {
     width: 300px;
     height: 300px;
     margin-bottom: 2rem;
   }
-
   svg {
     width: 100%;
     height: 100%;
     overflow: visible;
   }
-
   .slice {
     cursor: pointer;
     transition:
@@ -374,20 +261,17 @@
       transform 0.1s;
     transform-origin: center;
   }
-
   .slice:hover {
     filter: brightness(1.05);
     transform: scale(1.02);
     z-index: 10;
   }
-
   .slice.selected {
-    fill: var(--slice-selected);
+    fill: #ef4444;
   }
-
   .check-btn {
     background: var(--accent);
-    color: black;
+    color: var(--accent-fg);
     border: none;
     padding: 12px 32px;
     font-size: 1.2rem;
@@ -397,33 +281,28 @@
     text-transform: uppercase;
     transition: transform 0.1s;
   }
-
   .check-btn:active {
     transform: scale(0.95);
   }
-
   .feedback-area {
     height: 50px;
     display: flex;
     align-items: center;
     justify-content: center;
   }
-
   .feedback {
     font-size: 1.2rem;
     font-weight: bold;
   }
   .feedback.correct {
-    color: #16a34a;
+    color: var(--success);
   }
   .feedback.wrong {
-    color: #ef4444;
+    color: var(--error);
   }
-
   .shake {
     animation: shake 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
   }
-
   @keyframes shake {
     10%,
     90% {

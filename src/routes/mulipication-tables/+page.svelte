@@ -4,18 +4,11 @@
   import confetti from "canvas-confetti";
   import { playSound } from "$lib";
 
-  // --- Configuration ---
-  const LEVELS = {
-    Easy: 5,
-    Medium: 8,
-    Hard: 12,
-  } as const;
-
+  const LEVELS = { Easy: 5, Medium: 8, Hard: 12 } as const;
   type Level = keyof typeof LEVELS;
 
-  // --- Types ---
+  // ... (State logic same as previous, just copy logic here)
   type CellState = "empty" | "editing" | "correct" | "wrong" | "filled";
-
   interface Cell {
     value: number | null;
     tempValue: number | null;
@@ -23,7 +16,6 @@
     answer: number;
   }
 
-  // --- State Initialization ---
   let currentLevel = $state<Level>("Hard");
   let SIZE = $derived(LEVELS[currentLevel]);
 
@@ -44,41 +36,29 @@
     return newGrid;
   }
 
-  // Svelte 5: Deeply reactive state object
   let grid = $state(createGrid(LEVELS["Hard"]));
-
-  // Selection State
   let selectedR = $state<number | null>(null);
   let selectedC = $state<number | null>(null);
-
-  // Timer State
   let startTime = $state<number | null>(null);
   let elapsed = $state(0);
   let bestTime = $state<number | null>(null);
   let gameFinished = $state(false);
   let timerInterval: any = null;
 
-  // --- Lifecycle ---
   function loadBestTime() {
     const storedBest = localStorage.getItem(
       `multiplication-best-time-${currentLevel}`,
     );
-    if (storedBest) {
-      bestTime = parseFloat(storedBest);
-    } else {
-      bestTime = null;
-    }
+    bestTime = storedBest ? parseFloat(storedBest) : null;
   }
 
   onMount(() => {
     loadBestTime();
   });
-
   onDestroy(() => {
     if (timerInterval) clearInterval(timerInterval);
   });
 
-  // --- Helpers ---
   function formatTime(seconds: number): string {
     const m = Math.floor(seconds / 60);
     const s = Math.floor(seconds % 60);
@@ -97,39 +77,28 @@
     if (currentLevel === level) return;
     const update = () => {
       currentLevel = level;
-      // We need to fully reset the game state when level changes
       resetGame(true);
     };
-
-    // Use View Transition API if available for the slide animation
-    if (document.startViewTransition) {
-      document.startViewTransition(() => {
-        flushSync(update);
-      });
-    } else {
-      update();
-    }
+    if (document.startViewTransition)
+      document.startViewTransition(() => flushSync(update));
+    else update();
   }
 
   function checkWin() {
     let allCorrect = true;
     for (let r = 1; r <= SIZE; r++) {
       for (let c = 1; c <= SIZE; c++) {
-        const cell = grid[r][c];
-        if (cell.value !== cell.answer) {
+        if (grid[r][c].value !== grid[r][c].answer) {
           allCorrect = false;
           break;
         }
       }
     }
-
     if (allCorrect && !gameFinished) {
       gameFinished = true;
       if (timerInterval) clearInterval(timerInterval);
-
       const finalTime = (Date.now() - startTime!) / 1000;
       elapsed = finalTime;
-
       if (bestTime === null || finalTime < bestTime) {
         bestTime = finalTime;
         localStorage.setItem(
@@ -137,17 +106,10 @@
           finalTime.toString(),
         );
       }
-
       playSound("win");
-      confetti({
-        particleCount: 150,
-        spread: 70,
-        origin: { y: 0.6 },
-      });
+      confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
     }
   }
-
-  // --- Interaction Logic ---
 
   function selectCell(r: number, c: number) {
     if (r < 1 || r > SIZE || c < 1 || c > SIZE) return;
@@ -156,9 +118,8 @@
       selectedR !== null &&
       selectedC !== null
     ) {
-      if (grid[selectedR][selectedC].status === "editing") {
+      if (grid[selectedR][selectedC].status === "editing")
         cancelEdit(selectedR, selectedC);
-      }
     }
     selectedR = r;
     selectedC = c;
@@ -170,10 +131,8 @@
       selectCell(1, 1);
       return;
     }
-
     let newR = selectedR + dr;
     let newC = selectedC + dc;
-
     if (newC > SIZE) {
       newC = 1;
       newR++;
@@ -181,9 +140,7 @@
       newC = SIZE;
       newR--;
     }
-
     if (newR > SIZE || newR < 1) return;
-
     selectCell(newR, newC);
   }
 
@@ -194,14 +151,10 @@
   ) {
     if (r === 0 || c === 0) return;
     selectCell(r, c);
-
     grid[r][c].status = "editing";
-
-    if (initialValue) {
-      grid[r][c].tempValue = parseInt(initialValue);
-    } else {
-      grid[r][c].tempValue = grid[r][c].value;
-    }
+    grid[r][c].tempValue = initialValue
+      ? parseInt(initialValue)
+      : grid[r][c].value;
   }
 
   function cancelEdit(r: number, c: number) {
@@ -211,7 +164,6 @@
 
   function confirmCell(r: number, c: number) {
     const cell = grid[r][c];
-
     if (
       cell.tempValue === null ||
       isNaN(Number(cell.tempValue)) ||
@@ -220,10 +172,8 @@
       cancelEdit(r, c);
       return;
     }
-
     const inputVal = Number(cell.tempValue);
     const isCorrect = inputVal === cell.answer;
-
     grid[r][c].value = inputVal;
     if (isCorrect) {
       grid[r][c].status = "correct";
@@ -231,17 +181,13 @@
       checkWin();
       moveSelection(0, 1);
       setTimeout(() => {
-        if (grid[r][c].status === "correct") {
-          grid[r][c].status = "filled";
-        }
+        if (grid[r][c].status === "correct") grid[r][c].status = "filled";
       }, 2000);
     } else {
       grid[r][c].status = "wrong";
       playSound("wrong");
     }
   }
-
-  // --- Event Handlers ---
 
   function handleWindowKeydown(e: KeyboardEvent) {
     if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) {
@@ -255,17 +201,12 @@
       moveSelection(map[e.key][0], map[e.key][1]);
       return;
     }
-
     if (selectedR === null || selectedC === null) return;
-
-    const cell = grid[selectedR][selectedC];
-    const isEditing = cell.status === "editing";
-
+    const isEditing = grid[selectedR][selectedC].status === "editing";
     if (!isEditing && /^[0-9]$/.test(e.key)) {
       e.preventDefault();
       startEditing(selectedR, selectedC, e.key);
     }
-
     if (!isEditing && e.key === "Enter") {
       e.preventDefault();
       startEditing(selectedR, selectedC);
@@ -274,7 +215,6 @@
 
   function handleInputKeydown(e: KeyboardEvent, r: number, c: number) {
     e.stopPropagation();
-
     if (e.key === "Enter") confirmCell(r, c);
     if (e.key === "Escape") cancelEdit(r, c);
     if (e.key === "Tab") {
@@ -291,11 +231,10 @@
         if (cell.value !== null) {
           const correct = cell.value === cell.answer;
           cell.status = correct ? "correct" : "wrong";
-          if (correct) {
+          if (correct)
             setTimeout(() => {
               if (grid[r][c].status === "correct") grid[r][c].status = "filled";
             }, 2000);
-          }
         }
       }
     }
@@ -310,12 +249,7 @@
     selectedR = null;
     selectedC = null;
     loadBestTime();
-
-    if (forceRebuild) {
-      grid = createGrid(LEVELS[currentLevel]);
-    } else {
-      grid = createGrid(LEVELS[currentLevel]);
-    }
+    grid = createGrid(LEVELS[currentLevel]);
   }
 
   function clearAll() {
@@ -330,12 +264,10 @@
   <aside class="sidebar">
     <h2>How to Play</h2>
     <ul>
-      <li>Select a difficulty level.</li>
-      <li>Click a cell or use arrow keys to navigate.</li>
-      <li>Type the answer and press <strong>Enter</strong>.</li>
-      <li>Fill the entire grid to win!</li>
+      <li>Select difficulty.</li>
+      <li>Arrow keys or click to navigate.</li>
+      <li>Type answer, press Enter.</li>
     </ul>
-
     <div class="controls-sidebar">
       <button class="big-btn check-all" onclick={checkAll}>Check All</button>
       <button class="big-btn clear-all" onclick={clearAll}>Clear Board</button>
@@ -345,7 +277,6 @@
   <div class="game-container">
     <div class="header-section">
       <h1>Times Table Challenge</h1>
-
       <div class="levels">
         {#each Object.keys(LEVELS) as level}
           <button
@@ -363,16 +294,17 @@
           </button>
         {/each}
       </div>
-
       <div class="stats">
         <div class="stat-box">
-          <span class="label">Time</span>
-          <span class="value">{formatTime(elapsed)}</span>
+          <span class="label">Time</span><span class="value"
+            >{formatTime(elapsed)}</span
+          >
         </div>
         {#if bestTime !== null}
           <div class="stat-box best">
-            <span class="label">Best ({currentLevel})</span>
-            <span class="value">{formatTime(bestTime)}</span>
+            <span class="label">Best ({currentLevel})</span><span class="value"
+              >{formatTime(bestTime)}</span
+            >
           </div>
         {/if}
       </div>
@@ -387,13 +319,11 @@
           </div>
         {/each}
       </div>
-
       {#each grid.slice(1) as row, r}
         <div class="grid-row">
           <div class="cell header" class:highlighted={selectedR === r + 1}>
             {r + 1}
           </div>
-
           {#snippet Cell(cell, isSelected, actualR, actualC)}
             <div
               class="cell interactive {cell.status}"
@@ -411,39 +341,34 @@
                     autoFocus
                   />
                 </div>
-
                 <div class="actions" transition:fly={{ y: -20, duration: 250 }}>
                   <button
                     class="btn-icon check"
                     onclick={(e) => {
                       e.stopPropagation();
                       confirmCell(actualR, actualC);
-                    }}
+                    }}>✓</button
                   >
-                    ✓
-                  </button>
                   <button
                     class="btn-icon cancel"
                     onclick={(e) => {
                       e.stopPropagation();
                       cancelEdit(actualR, actualC);
-                    }}
+                    }}>✕</button
                   >
-                    ✕
-                  </button>
                 </div>
               {:else}
                 <span class="value">{cell.value ?? ""}</span>
               {/if}
             </div>
           {/snippet}
-
           {#each row.slice(1) as cell, c}
-            {@const actualR = r + 1}
-            {@const actualC = c + 1}
-            {@const isSelected = selectedR === actualR && selectedC === actualC}
-
-            {@render Cell(cell, isSelected, actualR, actualC)}
+            {@render Cell(
+              cell,
+              selectedR === r + 1 && selectedC === c + 1,
+              r + 1,
+              c + 1,
+            )}
           {/each}
         </div>
       {/each}
@@ -452,73 +377,6 @@
 </div>
 
 <style>
-  :root {
-    --color-bg: #18181b;
-    --color-header: #2563eb;
-    --color-header-text: #ffffff;
-    --color-header-highlight: #facc15;
-    --color-header-highlight-text: #000000;
-    --color-cell-bg: #27272a;
-    --color-cell-filled: #3f3f46;
-    --color-cell-hover: #52525b;
-    --color-text: #f4f4f5;
-    --color-correct: #16a34a;
-    --color-wrong: #dc2626;
-    --color-editing: #facc15;
-    --color-editing-text: #000000;
-    --shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
-    --radius: 6px;
-  }
-
-  /* Layout */
-  .page-layout {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 2rem;
-    padding: 2rem;
-    min-height: 100vh;
-    background-color: var(--color-bg);
-    color: var(--color-text);
-    font-family: "Roboto Mono", monospace;
-  }
-
-  @media (min-width: 1024px) {
-    .page-layout {
-      grid-template-columns: 250px 1fr;
-      align-items: start;
-    }
-  }
-
-  /* Sidebar */
-  .sidebar {
-    background: #27272a;
-    padding: 1.5rem;
-    border-radius: var(--radius);
-    border: 1px solid #3f3f46;
-  }
-  .sidebar h2 {
-    color: #facc15;
-    margin-top: 0;
-    font-size: 1.2rem;
-    text-transform: uppercase;
-  }
-  .sidebar ul {
-    padding-left: 1.2rem;
-    line-height: 1.6;
-    color: #a1a1aa;
-    margin-bottom: 2rem;
-  }
-  .sidebar li {
-    margin-bottom: 0.5rem;
-  }
-
-  /* Main Game Area */
-  .game-container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-  }
-
   .header-section {
     display: flex;
     flex-direction: column;
@@ -528,7 +386,7 @@
   }
 
   h1 {
-    color: #facc15;
+    color: var(--accent);
     text-transform: uppercase;
     letter-spacing: 2px;
     margin-bottom: 0.5rem;
@@ -539,17 +397,17 @@
   .levels {
     display: flex;
     gap: 0.25rem;
-    background: #27272a;
+    background: var(--bg-panel);
     padding: 4px;
     border-radius: var(--radius);
-    border: 1px solid #3f3f46;
+    border: 1px solid var(--border);
   }
 
   .level-btn {
     position: relative;
     background: transparent;
     border: none;
-    color: #a1a1aa;
+    color: var(--text-muted);
     padding: 8px 16px;
     border-radius: 4px;
     cursor: pointer;
@@ -560,19 +418,18 @@
   }
 
   .level-btn:hover:not(.active) {
-    background: #3f3f46;
-    color: white;
+    background: var(--bg-panel-hover);
+    color: var(--text-main);
   }
 
   .level-btn.active {
-    color: white;
+    color: var(--text-inverse);
   }
 
-  /* Sliding Pill */
   .active-pill {
     position: absolute;
     inset: 0;
-    background-color: var(--color-header);
+    background-color: var(--primary);
     border-radius: 4px;
     z-index: 0;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
@@ -583,47 +440,24 @@
     z-index: 1;
   }
 
-  .stats {
-    display: flex;
-    gap: 2rem;
-    margin-top: 0.5rem;
-  }
-
-  .stat-box {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    background: #27272a;
-    padding: 0.5rem 1rem;
-    border-radius: var(--radius);
-    border: 1px solid #3f3f46;
-    min-width: 100px;
-  }
-  .stat-box.best {
-    border-color: var(--color-correct);
-  }
-  .stat-box .label {
-    font-size: 0.8rem;
-    color: #a1a1aa;
-    text-transform: uppercase;
-  }
-  .stat-box .value {
-    font-size: 1.5rem;
-    font-weight: bold;
-    color: white;
-  }
-
-  /* --- Grid --- */
+  /* Grid */
   .grid-wrapper {
     display: flex;
     flex-direction: column;
     gap: 4px;
-    background: #000;
-    padding: 8px;
-    border: 1px solid #333;
+    background: var(--text-main); /* Dark border look */
+    padding: 4px;
     border-radius: var(--radius);
     box-shadow: var(--shadow);
     overflow: visible;
+  }
+
+  /* Fix for light mode grid gaps showing 'text-main' color (black) - using a variable hack or direct color */
+  :global(:root.dark) .grid-wrapper {
+    background: #000;
+  }
+  :global(:root) .grid-wrapper {
+    background: #ccc;
   }
 
   .grid-row {
@@ -632,7 +466,6 @@
     gap: 4px;
   }
 
-  /* --- Cells --- */
   .cell {
     width: 50px;
     height: 50px;
@@ -644,81 +477,74 @@
     font-size: 1.2rem;
     position: relative;
     transition: all 0.2s ease;
-    color: var(--color-text);
+    color: var(--text-main);
   }
 
   .header {
-    background-color: var(--color-header);
-    color: var(--color-header-text);
-    border: 1px solid #1e40af;
-    transition:
-      transform 0.2s,
-      background-color 0.2s;
+    background-color: var(--primary);
+    color: var(--text-inverse);
+    border: 1px solid var(--primary-hover);
   }
 
   .header.highlighted {
-    background-color: var(--color-header-highlight);
-    color: var(--color-header-highlight-text);
+    background-color: var(--accent);
+    color: var(--accent-fg);
     transform: scale(1.1);
     z-index: 5;
-    box-shadow: 0 0 10px rgba(250, 204, 21, 0.5);
-    border-color: white;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+    border-color: var(--bg-panel);
   }
 
   .corner {
     background-color: #9333ea;
     color: white;
-    border: 1px solid #7e22ce;
   }
 
   .interactive {
-    background-color: var(--color-cell-bg);
+    background-color: var(--bg-panel);
     cursor: pointer;
-    border: 1px solid #3f3f46;
     overflow: hidden;
   }
   .interactive:hover {
-    background-color: var(--color-cell-hover);
+    background-color: var(--bg-panel-hover);
   }
 
   .cell.selected {
-    border: 2px solid #3b82f6;
-    box-shadow: inset 0 0 0 1px #3b82f6;
+    border: 2px solid var(--primary);
+    box-shadow: inset 0 0 0 1px var(--primary);
     z-index: 10;
   }
 
   .interactive.editing {
-    background-color: transparent;
-    border: 2px solid white;
-    cursor: default;
+    background-color: var(--bg-panel);
+    border: 2px solid var(--text-main);
     transform: scale(1.15);
     z-index: 999;
     padding: 0;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+    box-shadow: var(--shadow);
     overflow: visible;
   }
 
   .interactive.correct {
-    background-color: var(--color-correct);
+    background-color: var(--success);
     color: white;
     animation: pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   }
   .interactive.wrong {
-    background-color: var(--color-wrong);
+    background-color: var(--error);
     color: white;
     animation: shake 0.4s ease-in-out;
   }
   .interactive.filled {
-    background-color: var(--color-cell-filled);
-    color: #e4e4e7;
-    border: 1px solid #52525b;
+    background-color: var(--bg-panel-hover);
+    color: var(--text-muted);
   }
 
   .input-area {
     width: 100%;
     height: 100%;
-    background-color: var(--color-editing);
-    color: var(--color-editing-text);
+    background-color: var(--accent);
+    color: var(--accent-fg);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -737,6 +563,7 @@
     font-weight: bold;
     outline: none;
     padding: 0;
+    color: currentColor;
   }
 
   .actions {
@@ -747,7 +574,7 @@
     height: 40px;
     display: flex;
     z-index: 1;
-    border: 2px solid white;
+    border: 2px solid var(--text-main);
     border-top: none;
     border-radius: 0 0 6px 6px;
     overflow: hidden;
@@ -764,56 +591,15 @@
     justify-content: center;
   }
   .check {
-    background-color: #16a34a;
+    background-color: var(--success);
     color: white;
   }
   .cancel {
-    background-color: #dc2626;
+    background-color: var(--error);
     color: white;
   }
   .btn-icon:hover {
     filter: brightness(1.1);
-  }
-
-  .controls-sidebar {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-  }
-
-  .big-btn {
-    border: none;
-    padding: 12px 24px;
-    border-radius: var(--radius);
-    font-size: 1rem;
-    font-weight: bold;
-    text-transform: uppercase;
-    cursor: pointer;
-    transition: all 0.2s;
-    font-family: inherit;
-    border: 2px solid transparent;
-    width: 100%;
-  }
-  .check-all {
-    border-color: #16a34a;
-    color: #16a34a;
-    background: transparent;
-  }
-  .check-all:hover {
-    background-color: #16a34a;
-    color: #000;
-  }
-  .clear-all {
-    border-color: #3f3f46;
-    color: #a1a1aa;
-    background: transparent;
-  }
-  .clear-all:hover {
-    border-color: #dc2626;
-    color: #dc2626;
-  }
-  .big-btn:active {
-    transform: translateY(2px);
   }
 
   @keyframes pop {
