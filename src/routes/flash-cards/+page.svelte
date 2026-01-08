@@ -2,6 +2,7 @@
   import { onMount, onDestroy } from "svelte";
   import { fly, scale } from "svelte/transition";
   import confetti from "canvas-confetti";
+  import { playSound } from "$lib";
 
   // --- Configuration ---
   const GAME_DURATION = 60; // seconds
@@ -27,7 +28,6 @@
 
   // Visual Feedback State
   let feedback = $state<"none" | "correct" | "wrong">("none");
-
   let timerInterval: any = null;
 
   // --- Lifecycle ---
@@ -97,6 +97,7 @@
     if (highScore === null || score > highScore) {
       highScore = score;
       localStorage.setItem("arithmetic-sprint-highscore", score.toString());
+      playSound("win");
       confetti({
         particleCount: 200,
         spread: 100,
@@ -113,6 +114,7 @@
       score += 1;
       streak += 1;
       feedback = "correct";
+      playSound("correct");
 
       // Streak bonuses
       if (streak > 0 && streak % 10 === 0) {
@@ -130,9 +132,7 @@
       // Wrong
       streak = 0;
       feedback = "wrong";
-      // Clear input to let them try again? Or move on?
-      // Standard sprint logic: usually you must fix it, or it penalizes.
-      // Let's clear and shake.
+      playSound("wrong");
       userInput = null;
     }
 
@@ -150,63 +150,75 @@
   }
 </script>
 
-<div class="container">
-  <h1>Arithmetic Sprint</h1>
+<div class="page-layout">
+  <aside class="sidebar">
+    <h2>How to Play</h2>
+    <ul>
+      <li>Race against the clock!</li>
+      <li>You have <strong>{GAME_DURATION} seconds</strong>.</li>
+      <li>Type the answer and press <strong>Enter</strong>.</li>
+      <li>Build up your streak for bonuses.</li>
+    </ul>
+  </aside>
 
-  <div class="stats-bar">
-    <div class="stat">
-      <span class="label">Time</span>
-      <span class="value" class:urgent={timeLeft <= 10}>{timeLeft}s</span>
-    </div>
-    <div class="stat">
-      <span class="label">Score</span>
-      <span class="value">{score}</span>
-    </div>
-    <div class="stat">
-      <span class="label">Streak</span>
-      <span class="value streak" class:fire={streak >= 5}>{streak} 🔥</span>
-    </div>
-  </div>
+  <div class="container">
+    <h1>Arithmetic Sprint</h1>
 
-  <div class="game-area">
-    {#if gameState === "start"}
-      <div class="card intro" in:fly={{ y: 20 }}>
-        <h2>Ready?</h2>
-        <p>Solve as many problems as you can in {GAME_DURATION} seconds.</p>
-        <button class="primary-btn" onclick={startGame}>Start Sprint</button>
+    <div class="stats-bar">
+      <div class="stat">
+        <span class="label">Time</span>
+        <span class="value" class:urgent={timeLeft <= 10}>{timeLeft}s</span>
       </div>
-    {:else if gameState === "playing"}
-      <div class="card question-card" class:shake={feedback === "wrong"}>
-        <div class="expression">
-          {question.text}
+      <div class="stat">
+        <span class="label">Score</span>
+        <span class="value">{score}</span>
+      </div>
+      <div class="stat">
+        <span class="label">Streak</span>
+        <span class="value streak" class:fire={streak >= 5}>{streak} 🔥</span>
+      </div>
+    </div>
+
+    <div class="game-area">
+      {#if gameState === "start"}
+        <div class="card intro" in:fly={{ y: 20 }}>
+          <h2>Ready?</h2>
+          <p>Solve as many problems as you can in {GAME_DURATION} seconds.</p>
+          <button class="primary-btn" onclick={startGame}>Start Sprint</button>
         </div>
-        <div class="equals">=</div>
-        <input
-          bind:this={inputElement}
-          type="number"
-          bind:value={userInput}
-          onkeydown={handleKeydown}
-          class:correct-flash={feedback === "correct"}
-          class:wrong-flash={feedback === "wrong"}
-          placeholder="?"
-        />
-        <button class="submit-btn" onclick={checkAnswer}>Gb</button>
-      </div>
-    {:else if gameState === "finished"}
-      <div class="card result" in:scale>
-        <h2>Time's Up!</h2>
-        <div class="final-score">
-          {score}
+      {:else if gameState === "playing"}
+        <div class="card question-card" class:shake={feedback === "wrong"}>
+          <div class="expression">
+            {question.text}
+          </div>
+          <div class="equals">=</div>
+          <input
+            bind:this={inputElement}
+            type="number"
+            bind:value={userInput}
+            onkeydown={handleKeydown}
+            class:correct-flash={feedback === "correct"}
+            class:wrong-flash={feedback === "wrong"}
+            placeholder="?"
+          />
+          <button class="submit-btn" onclick={checkAnswer}>Gb</button>
         </div>
-        <p class="label">Final Score</p>
+      {:else if gameState === "finished"}
+        <div class="card result" in:scale>
+          <h2>Time's Up!</h2>
+          <div class="final-score">
+            {score}
+          </div>
+          <p class="label">Final Score</p>
 
-        {#if highScore !== null}
-          <p class="highscore">High Score: {highScore}</p>
-        {/if}
+          {#if highScore !== null}
+            <p class="highscore">High Score: {highScore}</p>
+          {/if}
 
-        <button class="primary-btn" onclick={startGame}>Play Again</button>
-      </div>
-    {/if}
+          <button class="primary-btn" onclick={startGame}>Play Again</button>
+        </div>
+      {/if}
+    </div>
   </div>
 </div>
 
@@ -220,15 +232,50 @@
     --wrong: #dc2626;
   }
 
-  .container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
+  .page-layout {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 2rem;
+    padding: 2rem;
     min-height: 100vh;
     background-color: var(--bg-color);
     color: var(--text-main);
     font-family: "Roboto Mono", monospace;
-    padding: 2rem;
+  }
+
+  @media (min-width: 1024px) {
+    .page-layout {
+      grid-template-columns: 250px 1fr;
+      align-items: start;
+    }
+  }
+
+  .sidebar {
+    background: #27272a;
+    padding: 1.5rem;
+    border-radius: 8px;
+    border: 1px solid #3f3f46;
+  }
+  .sidebar h2 {
+    color: var(--accent);
+    margin-top: 0;
+    font-size: 1.2rem;
+    text-transform: uppercase;
+  }
+  .sidebar ul {
+    padding-left: 1.2rem;
+    line-height: 1.6;
+    color: #a1a1aa;
+  }
+  .sidebar li {
+    margin-bottom: 0.5rem;
+  }
+
+  .container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
   }
 
   h1 {
@@ -388,7 +435,7 @@
   }
 
   .submit-btn {
-    display: none; /* Hidden visually, but kept for logic if needed */
+    display: none;
   }
 
   @keyframes pulse {

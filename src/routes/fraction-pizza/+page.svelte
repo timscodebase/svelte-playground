@@ -2,6 +2,7 @@
   import { onMount, onDestroy } from "svelte";
   import { fly, scale, fade } from "svelte/transition";
   import confetti from "canvas-confetti";
+  import { playSound } from "$lib";
 
   // --- Configuration ---
   const LEVELS = {
@@ -20,9 +21,7 @@
   let denominator = $state(2); // Total slices
 
   // Array of booleans representing if a slice is selected
-  // We recreate this whenever the denominator changes
   let selectedSlices = $state<boolean[]>([]);
-
   let gameState = $state<"playing" | "correct" | "wrong">("playing");
   let feedbackMessage = $state("");
 
@@ -32,27 +31,19 @@
   const RADIUS = 90; // Leave some padding
 
   // Derived state for the SVG paths
-  // We calculate this whenever 'denominator' changes
   let slices = $derived.by(() => {
     const sliceArray = [];
     const anglePerSlice = (2 * Math.PI) / denominator;
 
     for (let i = 0; i < denominator; i++) {
-      // Calculate start and end angles (shifted by -PI/2 to start at 12 o'clock)
       const startAngle = i * anglePerSlice - Math.PI / 2;
       const endAngle = (i + 1) * anglePerSlice - Math.PI / 2;
 
-      // Calculate coordinates
       const x1 = CENTER + RADIUS * Math.cos(startAngle);
       const y1 = CENTER + RADIUS * Math.sin(startAngle);
       const x2 = CENTER + RADIUS * Math.cos(endAngle);
       const y2 = CENTER + RADIUS * Math.sin(endAngle);
 
-      // SVG Path Command
-      // M = Move to Center
-      // L = Line to outer edge (start)
-      // A = Arc to outer edge (end)
-      // Z = Close path (Line back to center)
       const largeArcFlag = anglePerSlice > Math.PI ? 1 : 0;
 
       const pathData = `
@@ -78,23 +69,14 @@
       possibleDenominators[
         Math.floor(Math.random() * possibleDenominators.length)
       ];
-
-    // Random numerator (1 to denominator - 1)
-    // We avoid 0/X and X/X (full pizza) usually, but X/X can be a fun "trick" question.
-    // Let's stick to proper fractions for now (1 to N).
     numerator = Math.floor(Math.random() * denominator) + 1;
-
-    // Reset selection
     selectedSlices = new Array(denominator).fill(false);
   }
 
   function toggleSlice(index: number) {
     if (gameState !== "playing") return;
     selectedSlices[index] = !selectedSlices[index];
-
-    // Optional: Auto-check if we want instant feedback?
-    // Or wait for a "Submit" button?
-    // "Submit" button feels more deliberate for learning.
+    playSound("pop");
   }
 
   function checkAnswer() {
@@ -106,6 +88,7 @@
       score += 10;
       streak += 1;
       feedbackMessage = "Delicious!";
+      playSound("correct");
 
       confetti({
         particleCount: 100,
@@ -122,13 +105,12 @@
       gameState = "wrong";
       streak = 0;
       feedbackMessage = `Oops! You selected ${selectedCount}, but we needed ${numerator}.`;
+      playSound("wrong");
 
-      // Allow retry or reset? Let's reset after a delay to keep flow.
       setTimeout(() => {
         gameState = "playing";
         feedbackMessage = "";
-        selectedSlices = new Array(denominator).fill(false); // Reset selection to try again?
-        // Or keep selection so they can fix it? -> Let's keep selection but change status back
+        selectedSlices = new Array(denominator).fill(false);
       }, 2000);
     }
   }
@@ -139,87 +121,105 @@
   });
 </script>
 
-<div class="container">
-  <div class="header">
-    <h1>Pizza Slicer 🍕</h1>
-    <div class="controls">
-      {#each Object.keys(LEVELS) as level}
-        <button
-          class:active={currentLevel === level}
-          onclick={() => {
-            currentLevel = level as Level;
-            generateLevel();
-          }}
-        >
-          {level}
-        </button>
-      {/each}
-    </div>
-  </div>
+<div class="page-layout">
+  <aside class="sidebar">
+    <h2>How to Play</h2>
+    <ul>
+      <li>
+        Look at the target fraction (e.g., <strong
+          >{numerator}/{denominator}</strong
+        >).
+      </li>
+      <li>Click the pizza slices to select that many pieces.</li>
+      <li>Click <strong>Check Order</strong> when you're done.</li>
+      <li>Change the difficulty to serve bigger pizzas!</li>
+    </ul>
+  </aside>
 
-  <div class="stats-bar">
-    <div class="stat">Score: <span class="val">{score}</span></div>
-    <div class="stat">Streak: <span class="val">{streak}</span></div>
-  </div>
-
-  <div class="game-area">
-    <div class="instruction">
-      <p>
-        Select <span class="highlight">{numerator}</span> /
-        <span class="highlight">{denominator}</span> of the pizza
-      </p>
-    </div>
-
-    <div class="pizza-wrapper">
-      <svg
-        viewBox="0 0 {VIEWBOX_SIZE} {VIEWBOX_SIZE}"
-        class:shake={gameState === "wrong"}
-      >
-        <circle cx={CENTER} cy={CENTER} r={RADIUS + 4} fill="#eab308" />
-
-        {#each slices as slice, i}
-          <path
-            d={slice.d}
-            class="slice"
-            class:selected={selectedSlices[i]}
-            onclick={() => toggleSlice(i)}
-            role="button"
-            tabindex="0"
-            onkeydown={(e) => e.key === "Enter" && toggleSlice(i)}
-            fill={selectedSlices[i] ? "#ef4444" : "#fef08a"}
-            stroke="#b45309"
-            stroke-width="2"
-          />
-
-          {#if selectedSlices[i]}
-            {@const angle =
-              (i * (2 * Math.PI)) / denominator -
-              Math.PI / 2 +
-              (2 * Math.PI) / denominator / 2}
-            {@const pepR = RADIUS * 0.6}
-            {@const pepX = CENTER + pepR * Math.cos(angle)}
-            {@const pepY = CENTER + pepR * Math.sin(angle)}
-            <circle
-              cx={pepX}
-              cy={pepY}
-              r="6"
-              fill="#7f1d1d"
-              opacity="0.8"
-              pointer-events="none"
-            />
-          {/if}
+  <div class="container">
+    <div class="header">
+      <h1>Pizza Slicer 🍕</h1>
+      <div class="controls">
+        {#each Object.keys(LEVELS) as level}
+          <button
+            class:active={currentLevel === level}
+            onclick={() => {
+              currentLevel = level as Level;
+              generateLevel();
+            }}
+          >
+            {level}
+          </button>
         {/each}
-
-        <circle cx={CENTER} cy={CENTER} r="0" fill="transparent" />
-      </svg>
+      </div>
     </div>
 
-    <div class="feedback-area">
-      {#if feedbackMessage}
-        <p class="feedback {gameState}" in:fly={{ y: 10 }}>{feedbackMessage}</p>
-      {:else}
-        <button class="check-btn" onclick={checkAnswer}>Check Order</button>
-      {/if}
+    <div class="stats-bar">
+      <div class="stat">Score: <span class="val">{score}</span></div>
+      <div class="stat">Streak: <span class="val">{streak}</span></div>
+    </div>
+
+    <div class="game-area">
+      <div class="instruction">
+        <p>
+          Select <span class="highlight">{numerator}</span> /
+          <span class="highlight">{denominator}</span> of the pizza
+        </p>
+      </div>
+
+      <div class="pizza-wrapper">
+        <svg
+          viewBox="0 0 {VIEWBOX_SIZE} {VIEWBOX_SIZE}"
+          class:shake={gameState === "wrong"}
+        >
+          <circle cx={CENTER} cy={CENTER} r={RADIUS + 4} fill="#eab308" />
+
+          {#each slices as slice, i}
+            <path
+              d={slice.d}
+              class="slice"
+              class:selected={selectedSlices[i]}
+              onclick={() => toggleSlice(i)}
+              role="button"
+              tabindex="0"
+              onkeydown={(e) => e.key === "Enter" && toggleSlice(i)}
+              fill={selectedSlices[i] ? "#ef4444" : "#fef08a"}
+              stroke="#b45309"
+              stroke-width="2"
+            />
+
+            {#if selectedSlices[i]}
+              {@const angle =
+                (i * (2 * Math.PI)) / denominator -
+                Math.PI / 2 +
+                (2 * Math.PI) / denominator / 2}
+              {@const pepR = RADIUS * 0.6}
+              {@const pepX = CENTER + pepR * Math.cos(angle)}
+              {@const pepY = CENTER + pepR * Math.sin(angle)}
+              <circle
+                cx={pepX}
+                cy={pepY}
+                r="6"
+                fill="#7f1d1d"
+                opacity="0.8"
+                pointer-events="none"
+              />
+            {/if}
+          {/each}
+
+          <circle cx={CENTER} cy={CENTER} r="0" fill="transparent" />
+        </svg>
+      </div>
+
+      <div class="feedback-area">
+        {#if feedbackMessage}
+          <p class="feedback {gameState}" in:fly={{ y: 10 }}>
+            {feedbackMessage}
+          </p>
+        {:else}
+          <button class="check-btn" onclick={checkAnswer}>Check Order</button>
+        {/if}
+      </div>
     </div>
   </div>
 </div>
@@ -234,15 +234,50 @@
     --crust: #b45309;
   }
 
-  .container {
+  .page-layout {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 2rem;
+    padding: 2rem;
     min-height: 100vh;
-    background: var(--bg);
+    background-color: var(--bg);
     color: var(--text);
     font-family: "Roboto Mono", monospace;
+  }
+
+  @media (min-width: 1024px) {
+    .page-layout {
+      grid-template-columns: 250px 1fr;
+      align-items: start;
+    }
+  }
+
+  .sidebar {
+    background: #27272a;
+    padding: 1.5rem;
+    border-radius: 8px;
+    border: 1px solid #3f3f46;
+  }
+  .sidebar h2 {
+    color: var(--accent);
+    margin-top: 0;
+    font-size: 1.2rem;
+    text-transform: uppercase;
+  }
+  .sidebar ul {
+    padding-left: 1.2rem;
+    line-height: 1.6;
+    color: #a1a1aa;
+  }
+  .sidebar li {
+    margin-bottom: 0.5rem;
+  }
+
+  .container {
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 2rem;
+    width: 100%;
   }
 
   .header {
@@ -368,7 +403,7 @@
   }
 
   .feedback-area {
-    height: 50px; /* Prevent layout shift */
+    height: 50px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -385,7 +420,6 @@
     color: #ef4444;
   }
 
-  /* Animations */
   .shake {
     animation: shake 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
   }

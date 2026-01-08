@@ -17,9 +17,7 @@
   let streak = $state(0);
 
   // Track which cells are currently revealed/found
-  // Using a Set string key "row,col"
   let foundCells = $state(new Set<string>());
-
   // Derived total occurrences of the target in the current grid
   let totalOccurrences = $state(0);
 
@@ -39,7 +37,6 @@
   function generateRound() {
     foundCells = new Set();
     foundCount = 0;
-
     // Pick a random number that actually exists in the grid (product of two random numbers)
     const r = Math.floor(Math.random() * size) + 1;
     const c = Math.floor(Math.random() * size) + 1;
@@ -57,29 +54,24 @@
 
   function handleCellClick(r: number, c: number, val: number) {
     const key = `${r},${c}`;
-    if (foundCells.has(key)) return; // Already found
+    if (foundCells.has(key)) return;
 
     if (val === targetNumber) {
-      // Correct
       playSound("pop");
       foundCells.add(key);
-      foundCells = new Set(foundCells); // Trigger reactivity
+      foundCells = new Set(foundCells);
       foundCount++;
       score += 10;
-
       if (foundCount === totalOccurrences) {
-        // Round Win
         playSound("win");
         streak++;
         confetti({ origin: { y: 0.6 }, particleCount: 50 });
         setTimeout(generateRound, 1500);
       }
     } else {
-      // Wrong
       playSound("wrong");
       streak = 0;
       score = Math.max(0, score - 5);
-      // Optional: Flash red feedback?
     }
   }
 
@@ -95,54 +87,69 @@
   });
 </script>
 
-<div class="container">
-  <div class="header">
-    <h1>Grid Chase</h1>
-    <div class="controls">
-      {#each Object.keys(LEVELS) as level}
-        <button
-          class:active={currentLevel === level}
-          onclick={() => setLevel(level as Level)}
+<div class="page-layout">
+  <aside class="sidebar">
+    <h2>How to Play</h2>
+    <ul>
+      <li>Look at the <strong>Find</strong> number in the target box.</li>
+      <li>Click every cell in the grid that equals that number.</li>
+      <li>
+        For example, if the target is <strong>12</strong>, find cells like
+        <strong>3x4</strong>, <strong>2x6</strong>, etc.
+      </li>
+      <li>Find them all to advance!</li>
+    </ul>
+  </aside>
+
+  <div class="container">
+    <div class="header">
+      <h1>Grid Chase</h1>
+      <div class="controls">
+        {#each Object.keys(LEVELS) as level}
+          <button
+            class:active={currentLevel === level}
+            onclick={() => setLevel(level as Level)}
+          >
+            {level}
+          </button>
+        {/each}
+      </div>
+    </div>
+
+    <div class="hud">
+      <div class="target-box">
+        <span class="label">Find</span>
+        <span class="number" in:scale={{ duration: 200, start: 0.8 }}
+          >{targetNumber}</span
         >
-          {level}
-        </button>
+        <span class="progress">{foundCount} / {totalOccurrences}</span>
+      </div>
+      <div class="stats">
+        <div class="stat">Score: {score}</div>
+        <div class="stat">Streak: {streak} 🔥</div>
+      </div>
+    </div>
+
+    <div class="grid" style="--size: {size}">
+      {#each grid as row, rIndex}
+        {#each row as val, cIndex}
+          {@const r = rIndex + 1}
+          {@const c = cIndex + 1}
+          {@const isFound = foundCells.has(`${r},${c}`)}
+
+          <button
+            class="cell"
+            class:found={isFound}
+            onclick={() => handleCellClick(r, c, val)}
+            disabled={isFound}
+          >
+            {#if isFound}
+              {val}
+            {/if}
+          </button>
+        {/each}
       {/each}
     </div>
-  </div>
-
-  <div class="hud">
-    <div class="target-box">
-      <span class="label">Find</span>
-      <span class="number" in:scale={{ duration: 200, start: 0.8 }}
-        >{targetNumber}</span
-      >
-      <span class="progress">{foundCount} / {totalOccurrences}</span>
-    </div>
-    <div class="stats">
-      <div class="stat">Score: {score}</div>
-      <div class="stat">Streak: {streak} 🔥</div>
-    </div>
-  </div>
-
-  <div class="grid" style="--size: {size}">
-    {#each grid as row, rIndex}
-      {#each row as val, cIndex}
-        {@const r = rIndex + 1}
-        {@const c = cIndex + 1}
-        {@const isFound = foundCells.has(`${r},${c}`)}
-
-        <button
-          class="cell"
-          class:found={isFound}
-          onclick={() => handleCellClick(r, c, val)}
-          disabled={isFound}
-        >
-          {#if isFound}
-            {val}
-          {/if}
-        </button>
-      {/each}
-    {/each}
   </div>
 </div>
 
@@ -154,15 +161,50 @@
     --text: #f4f4f5;
   }
 
-  .container {
+  .page-layout {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 2rem;
+    padding: 2rem;
     min-height: 100vh;
-    background: var(--bg);
+    background-color: var(--bg);
     color: var(--text);
     font-family: "Roboto Mono", monospace;
+  }
+
+  @media (min-width: 1024px) {
+    .page-layout {
+      grid-template-columns: 250px 1fr;
+      align-items: start;
+    }
+  }
+
+  .sidebar {
+    background: #27272a;
+    padding: 1.5rem;
+    border-radius: 8px;
+    border: 1px solid #3f3f46;
+  }
+  .sidebar h2 {
+    color: #facc15;
+    margin-top: 0;
+    font-size: 1.2rem;
+    text-transform: uppercase;
+  }
+  .sidebar ul {
+    padding-left: 1.2rem;
+    line-height: 1.6;
+    color: #a1a1aa;
+  }
+  .sidebar li {
+    margin-bottom: 0.5rem;
+  }
+
+  .container {
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 2rem;
+    width: 100%;
   }
 
   .header {

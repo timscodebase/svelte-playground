@@ -1,11 +1,11 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { flip } from "svelte/animate";
+  import { scale } from "svelte/transition";
   import confetti from "canvas-confetti";
   import { playSound } from "$lib";
 
   // --- State ---
-  // A draggable item
   interface Item {
     id: number;
     val: string | number;
@@ -15,7 +15,6 @@
   let target = $state(10);
   let hand = $state<Item[]>([]);
   let slots = $state<(Item | null)[]>([null, null, null, null, null]);
-  // e.g. [Num, Op, Num, Op, Num] -> A + B - C = Target
 
   let isDragging = $state(false);
   let draggedItem = $state<Item | null>(null);
@@ -24,54 +23,40 @@
 
   // --- Logic ---
   function generatePuzzle() {
-    // Basic "Make X" puzzle logic
-    // We generate a valid equation first, then scramble it
     const ops = ["+", "-"];
     const a = Math.floor(Math.random() * 10) + 1;
     const b = Math.floor(Math.random() * 10) + 1;
     const op = ops[Math.random() > 0.5 ? 0 : 1];
 
-    // Calculate target
     let res = 0;
     if (op === "+") res = a + b;
     else res = a - b;
 
-    // Ensure positive result for simplicity
     if (res < 0) return generatePuzzle();
 
     target = res;
+    slots = [null, null, null];
 
-    // Reset board
-    slots = [null, null, null]; // 3 slots: [A] [OP] [B]
-
-    // Create items and shuffle
     const items: Item[] = [
       { id: 1, val: a, type: "number" },
       { id: 2, val: op, type: "operator" },
       { id: 3, val: b, type: "number" },
-      // Distractors
       { id: 4, val: Math.floor(Math.random() * 10), type: "number" },
       { id: 5, val: ops[Math.random() > 0.5 ? 0 : 1], type: "operator" },
     ];
 
-    // Shuffle
     hand = items.sort(() => Math.random() - 0.5);
   }
 
   function checkSolution() {
-    // Check if slots are full
     if (slots.some((s) => s === null)) return;
-
-    // Parse equation
-    // This is simple [Num] [Op] [Num] logic
     const [n1, op, n2] = slots;
-
     if (
       n1?.type !== "number" ||
       n2?.type !== "number" ||
       op?.type !== "operator"
     ) {
-      return; // Invalid structure
+      return;
     }
 
     let val = 0;
@@ -101,29 +86,24 @@
     dragSourceIndex = index;
     isDragging = true;
     e.dataTransfer.effectAllowed = "move";
-    // Small delay to let the ghost image appear before hiding original
     setTimeout(() => {
       if (draggedItem) isDragging = true;
     }, 0);
   }
 
   function onDragOver(e: DragEvent) {
-    e.preventDefault(); // Allow dropping
+    e.preventDefault();
     if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
   }
 
   function onDropHand(e: DragEvent) {
     e.preventDefault();
     if (!draggedItem) return;
-
-    // Move back to hand
     if (dragSource === "slot") {
       slots[dragSourceIndex] = null;
       hand.push(draggedItem);
       playSound("pop");
     }
-    // If from hand, do nothing (reorder is too complex for this snippet)
-
     resetDrag();
     checkSolution();
   }
@@ -132,22 +112,17 @@
     e.preventDefault();
     if (!draggedItem) return;
 
-    // Swap logic
     const existing = slots[index];
-
-    // 1. Remove from source
     if (dragSource === "hand") {
       hand = hand.filter((i) => i.id !== draggedItem!.id);
     } else if (dragSource === "slot") {
       slots[dragSourceIndex] = null;
     }
 
-    // 2. Handle existing item in target slot (swap back to hand)
     if (existing) {
       hand.push(existing);
     }
 
-    // 3. Place new item
     slots[index] = draggedItem;
 
     playSound("pop");
@@ -167,60 +142,72 @@
   });
 </script>
 
-<div class="container">
-  <h1>Equation Builder</h1>
-  <p class="subtitle">Drag numbers and symbols to match the target</p>
+<div class="page-layout">
+  <aside class="sidebar">
+    <h2>How to Play</h2>
+    <ul>
+      <li>Drag numbers and symbols into the empty slots.</li>
+      <li>Create an equation that equals the <strong>Target</strong>.</li>
+      <li>For example, if Target is 10, try <strong>5 + 5</strong>.</li>
+      <li>Blue blocks are numbers, Orange blocks are operators.</li>
+    </ul>
+  </aside>
 
-  <div class="target-display">
-    Target: <span class="highlight">{target}</span>
-  </div>
+  <div class="container">
+    <h1>Equation Builder</h1>
+    <p class="subtitle">Drag numbers and symbols to match the target</p>
 
-  <div class="equation-board">
-    {#each slots as slot, i}
-      <div
-        class="slot"
-        class:filled={slot !== null}
-        ondragover={onDragOver}
-        ondrop={(e) => onDropSlot(e, i)}
-        role="group"
-      >
-        {#if slot}
-          <div
-            class="tile {slot.type}"
-            draggable="true"
-            ondragstart={(e) => onDragStart(e, slot, "slot", i)}
-            transition:scale
-          >
-            {slot.val}
-          </div>
-        {:else}
-          <span class="placeholder">?</span>
-        {/if}
-      </div>
-    {/each}
-    <div class="equals">= {target}</div>
-  </div>
+    <div class="target-display">
+      Target: <span class="highlight">{target}</span>
+    </div>
 
-  <div
-    class="hand-area"
-    ondragover={onDragOver}
-    ondrop={onDropHand}
-    role="group"
-  >
-    {#each hand as item (item.id)}
-      <div
-        class="tile {item.type}"
-        animate:flip={{ duration: 200 }}
-        draggable="true"
-        ondragstart={(e) => onDragStart(e, item, "hand", 0)}
-      >
-        {item.val}
-      </div>
-    {/each}
-  </div>
+    <div class="equation-board">
+      {#each slots as slot, i}
+        <div
+          class="slot"
+          class:filled={slot !== null}
+          ondragover={onDragOver}
+          ondrop={(e) => onDropSlot(e, i)}
+          role="group"
+        >
+          {#if slot}
+            <div
+              class="tile {slot.type}"
+              draggable="true"
+              ondragstart={(e) => onDragStart(e, slot, "slot", i)}
+              transition:scale
+            >
+              {slot.val}
+            </div>
+          {:else}
+            <span class="placeholder">?</span>
+          {/if}
+        </div>
+      {/each}
+      <div class="equals">= {target}</div>
+    </div>
 
-  <div class="controls">
-    <button class="btn" onclick={generatePuzzle}>Skip Puzzle</button>
+    <div
+      class="hand-area"
+      ondragover={onDragOver}
+      ondrop={onDropHand}
+      role="group"
+    >
+      {#each hand as item (item.id)}
+        <div
+          class="tile {item.type}"
+          animate:flip={{ duration: 200 }}
+          draggable="true"
+          ondragstart={(e) => onDragStart(e, item, "hand", 0)}
+        >
+          {item.val}
+        </div>
+      {/each}
+    </div>
+
+    <div class="controls">
+      <button class="btn" onclick={generatePuzzle}>Skip Puzzle</button>
+    </div>
   </div>
 </div>
 
@@ -233,15 +220,50 @@
     --text: #f4f4f5;
   }
 
-  .container {
+  .page-layout {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 2rem;
+    padding: 2rem;
     min-height: 100vh;
-    background: var(--bg);
+    background-color: var(--bg);
     color: var(--text);
     font-family: "Roboto Mono", monospace;
+  }
+
+  @media (min-width: 1024px) {
+    .page-layout {
+      grid-template-columns: 250px 1fr;
+      align-items: start;
+    }
+  }
+
+  .sidebar {
+    background: #27272a;
+    padding: 1.5rem;
+    border-radius: 8px;
+    border: 1px solid #3f3f46;
+  }
+  .sidebar h2 {
+    color: #a1a1aa;
+    margin-top: 0;
+    font-size: 1.2rem;
+    text-transform: uppercase;
+  }
+  .sidebar ul {
+    padding-left: 1.2rem;
+    line-height: 1.6;
+    color: #a1a1aa;
+  }
+  .sidebar li {
+    margin-bottom: 0.5rem;
+  }
+
+  .container {
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 2rem;
+    width: 100%;
   }
 
   h1 {

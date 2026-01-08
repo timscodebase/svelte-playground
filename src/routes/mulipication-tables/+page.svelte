@@ -2,6 +2,7 @@
   import { fly } from "svelte/transition";
   import { onMount, onDestroy, flushSync } from "svelte";
   import confetti from "canvas-confetti";
+  import { playSound } from "$lib";
 
   // --- Configuration ---
   const LEVELS = {
@@ -94,7 +95,6 @@
 
   function setLevel(level: Level) {
     if (currentLevel === level) return;
-
     const update = () => {
       currentLevel = level;
       // We need to fully reset the game state when level changes
@@ -104,8 +104,6 @@
     // Use View Transition API if available for the slide animation
     if (document.startViewTransition) {
       document.startViewTransition(() => {
-        // flushSync forces the DOM to update synchronously inside the transition
-        // so the browser can capture the 'after' state immediately
         flushSync(update);
       });
     } else {
@@ -118,7 +116,6 @@
     for (let r = 1; r <= SIZE; r++) {
       for (let c = 1; c <= SIZE; c++) {
         const cell = grid[r][c];
-        // Check if value matches answer (even if not visually marked 'correct' yet)
         if (cell.value !== cell.answer) {
           allCorrect = false;
           break;
@@ -141,6 +138,7 @@
         );
       }
 
+      playSound("win");
       confetti({
         particleCount: 150,
         spread: 70,
@@ -153,7 +151,6 @@
 
   function selectCell(r: number, c: number) {
     if (r < 1 || r > SIZE || c < 1 || c > SIZE) return;
-    // Close previous edit if changing selection
     if (
       (selectedR !== r || selectedC !== c) &&
       selectedR !== null &&
@@ -177,7 +174,6 @@
     let newR = selectedR + dr;
     let newC = selectedC + dc;
 
-    // Wrap columns
     if (newC > SIZE) {
       newC = 1;
       newR++;
@@ -186,7 +182,6 @@
       newR--;
     }
 
-    // Bounds check rows
     if (newR > SIZE || newR < 1) return;
 
     selectCell(newR, newC);
@@ -202,7 +197,6 @@
 
     grid[r][c].status = "editing";
 
-    // Auto-fill if user started typing a number
     if (initialValue) {
       grid[r][c].tempValue = parseInt(initialValue);
     } else {
@@ -211,16 +205,13 @@
   }
 
   function cancelEdit(r: number, c: number) {
-    // Svelte 5: Direct mutation triggers update
     grid[r][c].status = grid[r][c].value ? "filled" : "empty";
     grid[r][c].tempValue = null;
-    // Don't clear selection so user keeps their place
   }
 
   function confirmCell(r: number, c: number) {
     const cell = grid[r][c];
 
-    // Basic validation
     if (
       cell.tempValue === null ||
       isNaN(Number(cell.tempValue)) ||
@@ -236,25 +227,23 @@
     grid[r][c].value = inputVal;
     if (isCorrect) {
       grid[r][c].status = "correct";
+      playSound("correct");
       checkWin();
-      // Feature: Auto-advance on correct
       moveSelection(0, 1);
-      // Revert green to filled after delay
       setTimeout(() => {
-        // Ensure it wasn't changed to something else in the meantime
         if (grid[r][c].status === "correct") {
           grid[r][c].status = "filled";
         }
       }, 2000);
     } else {
       grid[r][c].status = "wrong";
+      playSound("wrong");
     }
   }
 
   // --- Event Handlers ---
 
   function handleWindowKeydown(e: KeyboardEvent) {
-    // 1. Arrow Navigation
     if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) {
       e.preventDefault();
       const map: Record<string, [number, number]> = {
@@ -272,14 +261,11 @@
     const cell = grid[selectedR][selectedC];
     const isEditing = cell.status === "editing";
 
-    // 2. Quick Entry (Type number to start editing immediately)
     if (!isEditing && /^[0-9]$/.test(e.key)) {
       e.preventDefault();
-      // Stop window scroll or other defaults
       startEditing(selectedR, selectedC, e.key);
     }
 
-    // 3. Enter to edit
     if (!isEditing && e.key === "Enter") {
       e.preventDefault();
       startEditing(selectedR, selectedC);
@@ -288,7 +274,6 @@
 
   function handleInputKeydown(e: KeyboardEvent, r: number, c: number) {
     e.stopPropagation();
-    // Don't bubble to window
 
     if (e.key === "Enter") confirmCell(r, c);
     if (e.key === "Escape") cancelEdit(r, c);
@@ -318,18 +303,14 @@
   }
 
   function resetGame(forceRebuild = false) {
-    // Reset Game State
     startTime = null;
     elapsed = 0;
     gameFinished = false;
     if (timerInterval) clearInterval(timerInterval);
     selectedR = null;
     selectedC = null;
-
-    // Refresh best time for current level
     loadBestTime();
 
-    // Rebuild or Clear Grid
     if (forceRebuild) {
       grid = createGrid(LEVELS[currentLevel]);
     } else {
@@ -345,121 +326,132 @@
 
 <svelte:window onkeydown={handleWindowKeydown} />
 
-<div class="container">
-  <div class="header-section">
-    <h1>Times Table Challenge</h1>
+<div class="page-layout">
+  <aside class="sidebar">
+    <h2>How to Play</h2>
+    <ul>
+      <li>Select a difficulty level.</li>
+      <li>Click a cell or use arrow keys to navigate.</li>
+      <li>Type the answer and press <strong>Enter</strong>.</li>
+      <li>Fill the entire grid to win!</li>
+    </ul>
 
-    <div class="levels">
-      {#each Object.keys(LEVELS) as level}
-        <button
-          class="level-btn"
-          class:active={currentLevel === level}
-          onclick={() => setLevel(level as Level)}
-        >
-          {#if currentLevel === level}
-            <div
-              class="active-pill"
-              style="view-transition-name: active-pill"
-            ></div>
-          {/if}
-          <span class="btn-text">{level}</span>
-        </button>
-      {/each}
+    <div class="controls-sidebar">
+      <button class="big-btn check-all" onclick={checkAll}>Check All</button>
+      <button class="big-btn clear-all" onclick={clearAll}>Clear Board</button>
     </div>
+  </aside>
 
-    <div class="stats">
-      <div class="stat-box">
-        <span class="label">Time</span>
-        <span class="value">{formatTime(elapsed)}</span>
-      </div>
-      {#if bestTime !== null}
-        <div class="stat-box best">
-          <span class="label">Best ({currentLevel})</span>
-          <span class="value">{formatTime(bestTime)}</span>
-        </div>
-      {/if}
-    </div>
-  </div>
+  <div class="game-container">
+    <div class="header-section">
+      <h1>Times Table Challenge</h1>
 
-  <div class="grid-wrapper" style="--SIZE: {SIZE}">
-    <div class="grid-row header-row">
-      <div class="cell corner">X</div>
-      {#each Array(SIZE) as _, i}
-        <div class="cell header" class:highlighted={selectedC === i + 1}>
-          {i + 1}
-        </div>
-      {/each}
-    </div>
-
-    {#each grid.slice(1) as row, r}
-      <div class="grid-row">
-        <div class="cell header" class:highlighted={selectedR === r + 1}>
-          {r + 1}
-        </div>
-
-        {#snippet Cell(cell, isSelected, actualR, actualC)}
-          <div
-            class="cell interactive {cell.status}"
-            class:selected={isSelected}
-            onclick={() => startEditing(actualR, actualC)}
-            role="button"
-            tabindex="-1"
+      <div class="levels">
+        {#each Object.keys(LEVELS) as level}
+          <button
+            class="level-btn"
+            class:active={currentLevel === level}
+            onclick={() => setLevel(level as Level)}
           >
-            {#if cell.status === "editing"}
-              <div class="input-area">
-                <input
-                  type="number"
-                  bind:value={cell.tempValue}
-                  onkeydown={(e) => handleInputKeydown(e, actualR, actualC)}
-                  autoFocus
-                />
-              </div>
-
-              <div class="actions" transition:fly={{ y: -20, duration: 250 }}>
-                <button
-                  class="btn-icon check"
-                  onclick={(e) => {
-                    e.stopPropagation();
-                    confirmCell(actualR, actualC);
-                  }}
-                >
-                  ✓
-                </button>
-                <button
-                  class="btn-icon cancel"
-                  onclick={(e) => {
-                    e.stopPropagation();
-                    cancelEdit(actualR, actualC);
-                  }}
-                >
-                  ✕
-                </button>
-              </div>
-            {:else}
-              <span class="value">{cell.value ?? ""}</span>
+            {#if currentLevel === level}
+              <div
+                class="active-pill"
+                style="view-transition-name: active-pill"
+              ></div>
             {/if}
-          </div>
-        {/snippet}
-
-        {#each row.slice(1) as cell, c}
-          {@const actualR = r + 1}
-          {@const actualC = c + 1}
-          {@const isSelected = selectedR === actualR && selectedC === actualC}
-
-          {@render Cell(cell, isSelected, actualR, actualC)}
+            <span class="btn-text">{level}</span>
+          </button>
         {/each}
       </div>
-    {/each}
-  </div>
 
-  <div class="controls">
-    <button class="big-btn check-all" onclick={checkAll}>Check All</button>
-    <button class="big-btn clear-all" onclick={clearAll}>Clear Board</button>
+      <div class="stats">
+        <div class="stat-box">
+          <span class="label">Time</span>
+          <span class="value">{formatTime(elapsed)}</span>
+        </div>
+        {#if bestTime !== null}
+          <div class="stat-box best">
+            <span class="label">Best ({currentLevel})</span>
+            <span class="value">{formatTime(bestTime)}</span>
+          </div>
+        {/if}
+      </div>
+    </div>
+
+    <div class="grid-wrapper" style="--SIZE: {SIZE}">
+      <div class="grid-row header-row">
+        <div class="cell corner">X</div>
+        {#each Array(SIZE) as _, i}
+          <div class="cell header" class:highlighted={selectedC === i + 1}>
+            {i + 1}
+          </div>
+        {/each}
+      </div>
+
+      {#each grid.slice(1) as row, r}
+        <div class="grid-row">
+          <div class="cell header" class:highlighted={selectedR === r + 1}>
+            {r + 1}
+          </div>
+
+          {#snippet Cell(cell, isSelected, actualR, actualC)}
+            <div
+              class="cell interactive {cell.status}"
+              class:selected={isSelected}
+              onclick={() => startEditing(actualR, actualC)}
+              role="button"
+              tabindex="-1"
+            >
+              {#if cell.status === "editing"}
+                <div class="input-area">
+                  <input
+                    type="number"
+                    bind:value={cell.tempValue}
+                    onkeydown={(e) => handleInputKeydown(e, actualR, actualC)}
+                    autoFocus
+                  />
+                </div>
+
+                <div class="actions" transition:fly={{ y: -20, duration: 250 }}>
+                  <button
+                    class="btn-icon check"
+                    onclick={(e) => {
+                      e.stopPropagation();
+                      confirmCell(actualR, actualC);
+                    }}
+                  >
+                    ✓
+                  </button>
+                  <button
+                    class="btn-icon cancel"
+                    onclick={(e) => {
+                      e.stopPropagation();
+                      cancelEdit(actualR, actualC);
+                    }}
+                  >
+                    ✕
+                  </button>
+                </div>
+              {:else}
+                <span class="value">{cell.value ?? ""}</span>
+              {/if}
+            </div>
+          {/snippet}
+
+          {#each row.slice(1) as cell, c}
+            {@const actualR = r + 1}
+            {@const actualC = c + 1}
+            {@const isSelected = selectedR === actualR && selectedC === actualC}
+
+            {@render Cell(cell, isSelected, actualR, actualC)}
+          {/each}
+        </div>
+      {/each}
+    </div>
   </div>
 </div>
 
 <style>
-  /* --- High Contrast / Dark Mode Theme --- */
   :root {
     --color-bg: #18181b;
     --color-header: #2563eb;
@@ -478,15 +470,53 @@
     --radius: 6px;
   }
 
-  .container {
-    font-family: "Roboto Mono", monospace;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
+  /* Layout */
+  .page-layout {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 2rem;
     padding: 2rem;
     min-height: 100vh;
     background-color: var(--color-bg);
     color: var(--color-text);
+    font-family: "Roboto Mono", monospace;
+  }
+
+  @media (min-width: 1024px) {
+    .page-layout {
+      grid-template-columns: 250px 1fr;
+      align-items: start;
+    }
+  }
+
+  /* Sidebar */
+  .sidebar {
+    background: #27272a;
+    padding: 1.5rem;
+    border-radius: var(--radius);
+    border: 1px solid #3f3f46;
+  }
+  .sidebar h2 {
+    color: #facc15;
+    margin-top: 0;
+    font-size: 1.2rem;
+    text-transform: uppercase;
+  }
+  .sidebar ul {
+    padding-left: 1.2rem;
+    line-height: 1.6;
+    color: #a1a1aa;
+    margin-bottom: 2rem;
+  }
+  .sidebar li {
+    margin-bottom: 0.5rem;
+  }
+
+  /* Main Game Area */
+  .game-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
   }
 
   .header-section {
@@ -516,7 +546,7 @@
   }
 
   .level-btn {
-    position: relative; /* Contain the absolute pill */
+    position: relative;
     background: transparent;
     border: none;
     color: #a1a1aa;
@@ -536,7 +566,6 @@
 
   .level-btn.active {
     color: white;
-    /* Background is handled by .active-pill */
   }
 
   /* Sliding Pill */
@@ -652,14 +681,12 @@
     background-color: var(--color-cell-hover);
   }
 
-  /* Selection State (Blue Ring) */
   .cell.selected {
     border: 2px solid #3b82f6;
     box-shadow: inset 0 0 0 1px #3b82f6;
     z-index: 10;
   }
 
-  /* --- Interactive States --- */
   .interactive.editing {
     background-color: transparent;
     border: 2px solid white;
@@ -687,7 +714,6 @@
     border: 1px solid #52525b;
   }
 
-  /* --- Editing UI --- */
   .input-area {
     width: 100%;
     height: 100%;
@@ -713,7 +739,6 @@
     padding: 0;
   }
 
-  /* Pop-under buttons */
   .actions {
     position: absolute;
     top: 100%;
@@ -750,23 +775,24 @@
     filter: brightness(1.1);
   }
 
-  /* --- Controls --- */
-  .controls {
-    margin-top: 2rem;
+  .controls-sidebar {
     display: flex;
+    flex-direction: column;
     gap: 1rem;
   }
+
   .big-btn {
     border: none;
     padding: 12px 24px;
     border-radius: var(--radius);
-    font-size: 1.1rem;
+    font-size: 1rem;
     font-weight: bold;
     text-transform: uppercase;
     cursor: pointer;
     transition: all 0.2s;
     font-family: inherit;
     border: 2px solid transparent;
+    width: 100%;
   }
   .check-all {
     border-color: #16a34a;
