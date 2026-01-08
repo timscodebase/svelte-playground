@@ -1,9 +1,8 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { flip } from "svelte/animate";
-  import { fade } from "svelte/transition";
   import confetti from "canvas-confetti";
-  import { playSound } from "$lib/sound";
+  import { playSound } from "$lib";
 
   // --- State ---
   // A draggable item
